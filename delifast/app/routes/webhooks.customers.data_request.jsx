@@ -1,6 +1,9 @@
-import { authenticate } from "../shopify.server";
+import { verifyShopifyWebhook } from "../webhooks.verify.server";
 
 export const action = async ({ request }) => {
-  await authenticate.webhook(request);
-  return new Response(null, { status: 200 });
+  const v = await verifyShopifyWebhook(request);
+  if (!v.ok) return new Response("Unauthorized", { status: 401 });
+
+  // v.topic === "customers/data_request"
+  return new Response("OK", { status: 200 });
 };
