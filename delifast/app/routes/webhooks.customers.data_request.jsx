@@ -1,25 +1,17 @@
-/**
- * Mandatory compliance webhook: customers/data_request
- * Shopify sends this when a customer requests their data.
- */
-
-import { authenticate } from "../shopify.server";
-import { logger } from "../services/logger.server";
-
 export const action = async ({ request }) => {
-  try {
-    const { shop, topic } = await authenticate.webhook(request);
+  const [{ authenticate }, { logger }] = await Promise.all([
+    import("../shopify.server"),
+    import("../services/logger.server"),
+  ]);
 
-    logger.info(`Received ${topic} compliance webhook`, { shop }, shop);
+  try {
+    await authenticate.webhook(request);
+
+    // Shopify only checks that you ACK the request
+    // You do NOT need to return customer data here
 
     return new Response(null, { status: 200 });
-  } catch (error) {
-    logger.error("Compliance webhook authentication failed", {
-      error: error?.message || String(error),
-      method: request.method,
-      url: request.url,
-    });
-
+  } catch {
     return new Response("Unauthorized", { status: 401 });
   }
 };
