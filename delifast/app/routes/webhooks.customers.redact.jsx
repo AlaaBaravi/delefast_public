@@ -1,30 +1,26 @@
 /**
  * Mandatory compliance webhook: customers/redact
- * Shopify sends this when customer data must be deleted/redacted.
  */
 
 import { authenticate } from "../shopify.server";
 import { logger } from "../services/logger.server";
-import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   try {
-    // Verifies HMAC + parses payload
     const { shop, topic, payload } = await authenticate.webhook(request);
 
-    logger.info(
-      `Received ${topic} compliance webhook`,
-      { shop, payload },
-      shop
-    );
+    logger.info(`Received ${topic} compliance webhook`, { shop, payload }, shop);
 
     const customerId =
       payload?.customer?.id != null ? String(payload.customer.id) : null;
 
     if (customerId) {
       try {
+        // ✅ Import Prisma ONLY inside action (server-only)
+        const { default: prisma } = await import("../db.server");
+
         // OPTIONAL: delete/redact any stored customer data in YOUR DB
-        // Example (uncomment and adjust to your schema):
+        // Example:
         // await prisma.customerData.deleteMany({ where: { shop, customerId } });
       } catch (dbErr) {
         logger.warn(
