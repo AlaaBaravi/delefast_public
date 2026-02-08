@@ -17,38 +17,31 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
 
-  // ✅ ADD THIS: webhooks configuration
+  // ✅ REQUIRED FOR APP STORE
   webhooks: {
-    ORDERS_CREATE: {
-      deliveryMethod: "http",
-      callbackUrl: "/webhooks/orders/create",
-    },
-    ORDERS_PAID: {
-      deliveryMethod: "http",
-      callbackUrl: "/webhooks/orders/paid",
-    },
-
-    // ✅ Mandatory compliance webhook (App Store requirement)
     APP_UNINSTALLED: {
       deliveryMethod: "http",
       callbackUrl: "/webhooks/app/uninstalled",
+    },
+    CUSTOMERS_DATA_REQUEST: {
+      deliveryMethod: "http",
+      callbackUrl: "/webhooks/customers/data_request",
+    },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: "http",
+      callbackUrl: "/webhooks/customers/redact",
+    },
+    SHOP_REDACT: {
+      deliveryMethod: "http",
+      callbackUrl: "/webhooks/shop/redact",
     },
   },
 
   future: {
     expiringOfflineAccessTokens: true,
   },
-
-  ...(process.env.SHOP_CUSTOM_DOMAIN
-    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
-    : {}),
 });
 
 export default shopify;
-export const apiVersion = ApiVersion.October25;
-export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
-export const unauthenticated = shopify.unauthenticated;
-export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
-export const sessionStorage = shopify.sessionStorage;
