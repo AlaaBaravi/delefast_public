@@ -1,6 +1,3 @@
-# Delifast Shopify App Configuration
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
-
 client_id = "af955fe755967af3f8bc9a39e13ad1d5"
 name = "delifast"
 application_url = "https://delifast-public.onrender.com"
@@ -11,13 +8,9 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [webhooks]
-# Use a valid Shopify API version:
-# Recommended: 2024-10 (stable) or 2025-01 (if your code supports it)
-api_version = "2024-10"
+api_version = "2025-10"
 
-  # =========================
-  # Mandatory compliance webhooks (REQUIRED by Shopify)
-  # =========================
+  # Mandatory compliance webhooks (REQUIRED)
   [[webhooks.subscriptions]]
   topics = ["customers/data_request"]
   uri = "/webhooks/customers/data_request"
@@ -30,9 +23,7 @@ api_version = "2024-10"
   topics = ["shop/redact"]
   uri = "/webhooks/shop/redact"
 
-  # =========================
-  # App lifecycle webhooks
-  # =========================
+  # Existing webhooks
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled"]
   uri = "/webhooks/app/uninstalled"
@@ -41,9 +32,6 @@ api_version = "2024-10"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
-  # =========================
-  # Order webhooks for Delifast integration
-  # =========================
   [[webhooks.subscriptions]]
   topics = ["orders/create"]
   uri = "/webhooks/orders/create"
@@ -60,7 +48,4 @@ api_version = "2024-10"
 scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields"
 
 [auth]
-redirect_urls = [
-  "https://delifast-public.onrender.com/auth/callback",
-  "https://delifast-public.onrender.com/auth/login"
-]
+redirect_urls = ["https://delifast-public.onrender.com/auth/callback"]
