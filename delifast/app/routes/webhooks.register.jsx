@@ -1,13 +1,13 @@
-import { authenticate, registerWebhooks } from "../shopify.server";
+import { authenticate } from "../shopify.server";
+import { registerAllWebhooks } from "../webhooks.register.server";
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
 
-  if (!session?.shop) {
-    return new Response("No session", { status: 401 });
-  }
+  await registerAllWebhooks(session);
 
-  await registerWebhooks({ session });
-
-  return new Response("Webhooks registered", { status: 200 });
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 };
