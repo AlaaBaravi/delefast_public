@@ -45,7 +45,7 @@ api_version = "2025-10"
   uri = "/webhooks/orders/updated"
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields"
+scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields,write_webhooks"
 
 [auth]
 redirect_urls = ["https://delifast-public.onrender.com/auth/callback"]
