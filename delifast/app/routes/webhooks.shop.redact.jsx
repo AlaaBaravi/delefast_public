@@ -5,50 +5,22 @@
 
 import { authenticate } from "../shopify.server";
 import { logger } from "../services/logger.server";
-import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   try {
     const { shop, topic, payload } = await authenticate.webhook(request);
 
-    logger.info(`Received ${topic} compliance webhook`, {
-      shop,
-      payload,
-    }, shop);
+    logger.info(`Received ${topic} compliance webhook`, { shop }, shop);
 
-    // ✅ هنا غالبًا لازم تمسح بيانات المتجر من DB
-    // (Sessions / StoreSettings / Shipments / Logs ...)
-    try {
-      await prisma.shipment.deleteMany({ where: { shop } });
-    } catch (e) {
-      logger.warning("shop/redact: shipment cleanup skipped/failed", {
-        error: e?.message || String(e),
-      }, shop);
-    }
+    // IMPORTANT: dynamic import عشان build
+    const { default: prisma } = await import("../db.server");
 
-    try {
-      await prisma.storeSettings.deleteMany({ where: { shop } });
-    } catch (e) {
-      logger.warning("shop/redact: storeSettings cleanup skipped/failed", {
-        error: e?.message || String(e),
-      }, shop);
-    }
-
-    try {
-      await prisma.log.deleteMany({ where: { shop } });
-    } catch (e) {
-      logger.warning("shop/redact: log cleanup skipped/failed", {
-        error: e?.message || String(e),
-      }, shop);
-    }
-
-    try {
-      await prisma.session.deleteMany({ where: { shop } });
-    } catch (e) {
-      logger.warning("shop/redact: session cleanup skipped/failed", {
-        error: e?.message || String(e),
-      }, shop);
-    }
+    // امسح بيانات المتجر
+    // عدّل حسب Prisma model names عندك
+    await prisma.shipment.deleteMany({ where: { shop } }).catch(() => {});
+    await prisma.storeSettings.deleteMany({ where: { shop } }).catch(() => {});
+    await prisma.log.deleteMany({ where: { shop } }).catch(() => {});
+    await prisma.session.deleteMany({ where: { shop } }).catch(() => {});
 
     return new Response(null, { status: 200 });
   } catch (error) {
