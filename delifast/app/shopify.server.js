@@ -2,7 +2,6 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
-  DeliveryMethod,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
@@ -18,41 +17,37 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
 
-  // ✅ Mandatory compliance webhooks + uninstall
+  /** 🔴 أضف الجزء ده */
   webhooks: {
-    APP_UNINSTALLED: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/app/uninstalled",
+    ORDERS_CREATE: {
+      topic: "orders/create",
+      route: "/webhooks/orders/create",
     },
+    ORDERS_PAID: {
+      topic: "orders/paid",
+      route: "/webhooks/orders/paid",
+    },
+
+    // ✅ mandatory compliance webhooks
     CUSTOMERS_DATA_REQUEST: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/customers/data_request",
+      topic: "customers/data_request",
+      route: "/webhooks/customers/data_request",
     },
     CUSTOMERS_REDACT: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/customers/redact",
+      topic: "customers/redact",
+      route: "/webhooks/customers/redact",
     },
     SHOP_REDACT: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/shop/redact",
+      topic: "shop/redact",
+      route: "/webhooks/shop/redact",
     },
   },
 
   future: {
     expiringOfflineAccessTokens: true,
   },
-
-  ...(process.env.SHOP_CUSTOM_DOMAIN
-    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
-    : {}),
 });
 
 export default shopify;
-
-export const apiVersion = ApiVersion.October25;
-export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
-export const unauthenticated = shopify.unauthenticated;
-export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
-export const sessionStorage = shopify.sessionStorage;
