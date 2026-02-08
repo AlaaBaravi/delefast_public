@@ -1,25 +1,22 @@
-import { useRouteError, isRouteErrorResponse } from "react-router";
+import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-export default function AuthLoginError() {
+export default function ErrorBoundary() {
   const error = useRouteError();
 
   if (isRouteErrorResponse(error)) {
     return (
-      <div style={{ padding: 16 }}>
-        <h2>Auth Error</h2>
-        <p>
-          {error.status} {error.statusText}
-        </p>
+      <div style={{ padding: 20 }}>
+        <h1>Authentication Error</h1>
+        <p>Status: {error.status}</p>
+        <p>{error.data || error.statusText}</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Auth Error</h2>
-      <pre style={{ whiteSpace: "pre-wrap" }}>
-        {error?.message ? error.message : String(error)}
-      </pre>
+    <div style={{ padding: 20 }}>
+      <h1>Unexpected Error</h1>
+      <pre>{error?.message || String(error)}</pre>
     </div>
   );
 }
