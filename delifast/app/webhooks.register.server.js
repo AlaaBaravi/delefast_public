@@ -1,70 +1,80 @@
-const API_VERSION = process.env.SHOPIFY_API_VERSION || "2025-10";
+import { shopifyApi, ApiVersion } from "@shopify/shopify-api";
 
-async function shopifyGraphQL({ shop, accessToken, query, variables }) {
-  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
+const api = shopifyApi({
+  apiKey: process.env.SHOPIFY_API_KEY,
+  apiSecretKey: process.env.SHOPIFY_API_SECRET,
+  scopes: (process.env.SCOPES || "").split(","),
+  hostName: new URL(process.env.SHOPIFY_APP_URL).host,
+  apiVersion: ApiVersion.October25,
+  isEmbeddedApp: true,
+});
+
+export async function registerAllWebhooks(session) {
+  const baseUrl = process.env.SHOPIFY_APP_URL;
+
+  const registrations = [
+    {
+      topic: "CUSTOMERS_DATA_REQUEST",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/customers/data_request`,
+        format: "JSON",
+      },
     },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(`Shopify GraphQL HTTP ${res.status}: ${JSON.stringify(json)}`);
-  }
-  if (json.errors?.length) {
-    throw new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
-  }
-  return json.data;
-}
-
-export async function registerAllWebhooks({ shop, accessToken, appUrl }) {
-  const topics = [
-    { topic: "ORDERS_CREATE", path: "/webhooks/orders/create" },
-    { topic: "ORDERS_PAID", path: "/webhooks/orders/paid" },
-    { topic: "ORDERS_UPDATED", path: "/webhooks/orders/updated" },
-    { topic: "APP_UNINSTALLED", path: "/webhooks/app/uninstalled" },
-    { topic: "APP_SCOPES_UPDATE", path: "/webhooks/app/scopes_update" },
-
-    // Mandatory compliance topics
-    { topic: "CUSTOMERS_DATA_REQUEST", path: "/webhooks/customers/data_request" },
-    { topic: "CUSTOMERS_REDACT", path: "/webhooks/customers/redact" },
-    { topic: "SHOP_REDACT", path: "/webhooks/shop/redact" },
+    {
+      topic: "CUSTOMERS_REDACT",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/customers/redact`,
+        format: "JSON",
+      },
+    },
+    {
+      topic: "SHOP_REDACT",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/shop/redact`,
+        format: "JSON",
+      },
+    },
+    {
+      topic: "ORDERS_CREATE",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/orders/create`,
+        format: "JSON",
+      },
+    },
+    {
+      topic: "ORDERS_PAID",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/orders/paid`,
+        format: "JSON",
+      },
+    },
+    {
+      topic: "ORDERS_UPDATED",
+      webhookSubscription: {
+        callbackUrl: `${baseUrl}/webhooks/orders/updated`,
+        format: "JSON",
+      },
+    },
   ];
 
-  const mutation = `
-    mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $callbackUrl: URL!) {
-      webhookSubscriptionCreate(
-        topic: $topic
-        webhookSubscription: { callbackUrl: $callbackUrl, format: JSON }
-      ) {
-        userErrors { field message }
-        webhookSubscription { id }
-      }
-    }
-  `;
+  const client = new api.clients.Graphql({ session });
 
-  for (const t of topics) {
-    const callbackUrl = `${appUrl}${t.path}`;
-
-    const data = await shopifyGraphQL({
-      shop,
-      accessToken,
-      query: mutation,
-      variables: { topic: t.topic, callbackUrl },
+  for (const r of registrations) {
+    await client.query({
+      data: {
+        query: `
+          mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+            webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+              userErrors { field message }
+              webhookSubscription { id }
+            }
+          }
+        `,
+        variables: {
+          topic: r.topic,
+          webhookSubscription: r.webhookSubscription,
+        },
+      },
     });
-
-    const errors = data.webhookSubscriptionCreate.userErrors;
-    if (errors?.length) {
-      // If already exists, Shopify may return an error depending on state.
-      // We don't hard-fail unless it's not "already taken".
-      const msg = errors.map((e) => e.message).join(" | ");
-      if (!msg.toLowerCase().includes("taken") && !msg.toLowerCase().includes("already")) {
-        throw new Error(`Webhook create failed for ${t.topic}: ${msg}`);
-      }
-    }
   }
 }
