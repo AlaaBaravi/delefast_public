@@ -1,7 +1,8 @@
-/**
- * Mandatory compliance webhook: customers/redact
- * Shopify sends this when customer data must be deleted/redacted.
- */
+export const loader = async () => {
+  // Browsers/Shopify checks may hit this with GET — don’t crash
+  return new Response("Method Not Allowed", { status: 405 });
+};
+
 export const action = async ({ request }) => {
   const [{ authenticate }, { logger }, { default: prisma }] = await Promise.all([
     import("../shopify.server"),
@@ -12,39 +13,18 @@ export const action = async ({ request }) => {
   try {
     const { shop, topic, payload } = await authenticate.webhook(request);
 
-    logger.info(
-      `Received ${topic} compliance webhook`,
-      { shop, payload },
-      shop
-    );
-
     const customerId =
       payload?.customer?.id != null ? String(payload.customer.id) : null;
 
     if (customerId) {
-      try {
-        // Optional: delete/redact customer data if you store any
-        // await prisma.customerData.deleteMany({ where: { shop, customerId } });
-      } catch (dbErr) {
-        logger.warning(
-          "Customer redact DB cleanup skipped/failed",
-          {
-            error: dbErr?.message || String(dbErr),
-            customerId,
-          },
-          shop
-        );
-      }
+      // Optional: delete/redact your stored customer data here
+      // await prisma.customerData.deleteMany({ where: { shop, customerId } });
     }
 
     return new Response(null, { status: 200 });
   } catch (error) {
-    logger.error("Compliance webhook authentication failed", {
-      error: error?.message || String(error),
-      method: request.method,
-      url: request.url,
-    });
-
+    // IMPORTANT: Invalid HMAC must return 401 (Shopify checks this)
+    logger?.error?.("Webhook auth failed", { error: error?.message || String(error) });
     return new Response("Unauthorized", { status: 401 });
   }
 };
