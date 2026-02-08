@@ -3,7 +3,7 @@
 
 client_id = "49216002eaf8bc5c29a65a0a9d515deb"
 name = "delifast"
-application_url = "https://example.com"
+application_url = "https://YOUR-DOMAIN.com"
 embedded = true
 
 [build]
@@ -13,7 +13,24 @@ include_config_on_deploy = true
 [webhooks]
 api_version = "2024-10"
 
+  # =========================
+  # Mandatory compliance webhooks (REQUIRED by Shopify)
+  # =========================
+  [[webhooks.subscriptions]]
+  topics = ["customers/data_request"]
+  uri = "/webhooks/customers/data_request"
+
+  [[webhooks.subscriptions]]
+  topics = ["customers/redact"]
+  uri = "/webhooks/customers/redact"
+
+  [[webhooks.subscriptions]]
+  topics = ["shop/redact"]
+  uri = "/webhooks/shop/redact"
+
+  # =========================
   # App lifecycle webhooks
+  # =========================
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled"]
   uri = "/webhooks/app/uninstalled"
@@ -22,7 +39,9 @@ api_version = "2024-10"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
+  # =========================
   # Order webhooks for Delifast integration
+  # =========================
   [[webhooks.subscriptions]]
   topics = ["orders/create"]
   uri = "/webhooks/orders/create"
@@ -36,8 +55,7 @@ api_version = "2024-10"
   uri = "/webhooks/orders/updated"
 
 [access_scopes]
-# Required scopes for Delifast integration
 scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields"
 
 [auth]
-redirect_urls = ["https://example.com/auth/callback"]
+redirect_urls = ["https://YOUR-DOMAIN.com/auth/callback"]
