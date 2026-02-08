@@ -2,13 +2,15 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate, registerWebhooks } from "../shopify.server";
 
 export const loader = async ({ request }) => {
-  // ✅ لازم نمسك session اللي راجع من authenticate
-  const { session } = await authenticate.admin(request);
+  // Authenticate and get the full auth result (session + admin client, etc.)
+  const authResult = await authenticate.admin(request);
 
-  // ✅ دي اللي بتسجّل webhooks في Shopify (مرة واحدة لكل متجر)
-  await registerWebhooks({ session });
+  // Register all webhooks defined in shopify.server.js
+  // (customers/data_request, customers/redact, shop/redact, orders/*, etc.)
+  await registerWebhooks(authResult);
 
-  return null;
+  // Continue the auth flow (you can redirect to your app)
+  return new Response(null, { status: 204 });
 };
 
 export const headers = (headersArgs) => boundary.headers(headersArgs);
