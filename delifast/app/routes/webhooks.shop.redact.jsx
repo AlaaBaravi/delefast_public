@@ -1,26 +1,22 @@
 /**
  * Mandatory compliance webhook: shop/redact
- * Shopify sends this after app uninstall when shop data must be deleted.
  */
 
 import { authenticate } from "../shopify.server";
 import { logger } from "../services/logger.server";
-import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   try {
-    // Verifies HMAC + parses payload
     const { shop, topic, payload } = await authenticate.webhook(request);
 
-    logger.info(
-      `Received ${topic} compliance webhook`,
-      { shop, payload },
-      shop
-    );
+    logger.info(`Received ${topic} compliance webhook`, { shop, payload }, shop);
 
     try {
+      // ✅ Import Prisma ONLY inside action (server-only)
+      const { default: prisma } = await import("../db.server");
+
       // OPTIONAL: delete/redact any data you store for this shop in YOUR DB
-      // Examples (uncomment and adjust to your schema):
+      // Examples:
       // await prisma.session.deleteMany({ where: { shop } });
       // await prisma.someTable.deleteMany({ where: { shop } });
     } catch (dbErr) {
