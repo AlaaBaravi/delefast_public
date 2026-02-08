@@ -5,31 +5,28 @@
 
 import { authenticate } from "../shopify.server";
 import { logger } from "../services/logger.server";
-import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   try {
     const { shop, topic, payload } = await authenticate.webhook(request);
 
-    logger.info(`Received ${topic} compliance webhook`, {
-      shop,
-      payload,
-    }, shop);
+    logger.info(`Received ${topic} compliance webhook`, { shop }, shop);
 
-    // ✅ اختياري (لو بتخزن بيانات العميل عندك)
-    // payload غالبًا يحتوي customer.id (وقد يحتوي customer.email)
     const customerId =
       payload?.customer?.id != null ? String(payload.customer.id) : null;
 
+    // ✅ لو عندك فعلاً بيانات عميل بتخزنها، اعمل cleanup هنا
+    // IMPORTANT: dynamic import عشان ما يكسرش build
     if (customerId) {
-      // مثال: امسح أي بيانات مرتبطة بالعميل في DB عندك (لو موجودة)
-      // عدّل الجداول حسب مشروعك
-      // هنا مثال آمن: لا يرمي خطأ لو مفيش جدول/علاقة
       try {
-        // ضع هنا منطق الحذف/الريدآكت لو عندك تخزين بيانات عملاء
+        const { default: prisma } = await import("../db.server");
+
+        // مثال: امسح أي data مرتبطة بالعميل (عدّل حسب جداولك)
+        // لو ما عندكش جدول customerData سيبها commented
         // await prisma.customerData.deleteMany({ where: { shop, customerId } });
+
       } catch (dbErr) {
-        logger.warning("Customer redact DB cleanup skipped/failed", {
+        logger.warning("customers/redact DB cleanup skipped/failed", {
           error: dbErr?.message || String(dbErr),
           customerId,
         }, shop);
