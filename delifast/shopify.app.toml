@@ -1,5 +1,5 @@
 client_id = "af955fe755967af3f8bc9a39e13ad1d5"
-name = "delifast"
+name = "Delifast Public"
 application_url = "https://delifast-public.onrender.com"
 embedded = true
 
@@ -10,42 +10,44 @@ include_config_on_deploy = true
 [webhooks]
 api_version = "2025-10"
 
-  # Mandatory compliance webhooks (REQUIRED)
-  [[webhooks.subscriptions]]
-  topics = ["customers/data_request"]
-  uri = "/webhooks/customers/data_request"
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/webhooks/app/uninstalled"
 
-  [[webhooks.subscriptions]]
-  topics = ["customers/redact"]
-  uri = "/webhooks/customers/redact"
+[[webhooks.subscriptions]]
+topics = ["app/scopes_update"]
+uri = "/webhooks/app/scopes_update"
 
-  [[webhooks.subscriptions]]
-  topics = ["shop/redact"]
-  uri = "/webhooks/shop/redact"
+[[webhooks.subscriptions]]
+topics = ["orders/create"]
+uri = "/webhooks/orders/create"
 
-  # Existing webhooks
-  [[webhooks.subscriptions]]
-  topics = ["app/uninstalled"]
-  uri = "/webhooks/app/uninstalled"
+[[webhooks.subscriptions]]
+topics = ["orders/paid"]
+uri = "/webhooks/orders/paid"
 
-  [[webhooks.subscriptions]]
-  topics = ["app/scopes_update"]
-  uri = "/webhooks/app/scopes_update"
+[[webhooks.subscriptions]]
+topics = ["orders/updated"]
+uri = "/webhooks/orders/updated"
 
-  [[webhooks.subscriptions]]
-  topics = ["orders/create"]
-  uri = "/webhooks/orders/create"
+# Mandatory compliance topics (Shopify requires these)
+[[webhooks.subscriptions]]
+topics = ["customers/data_request"]
+uri = "/webhooks/customers/data_request"
 
-  [[webhooks.subscriptions]]
-  topics = ["orders/paid"]
-  uri = "/webhooks/orders/paid"
+[[webhooks.subscriptions]]
+topics = ["customers/redact"]
+uri = "/webhooks/customers/redact"
 
-  [[webhooks.subscriptions]]
-  topics = ["orders/updated"]
-  uri = "/webhooks/orders/updated"
+[[webhooks.subscriptions]]
+topics = ["shop/redact"]
+uri = "/webhooks/shop/redact"
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields,write_webhooks"
+scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments"
 
 [auth]
-redirect_urls = ["https://delifast-public.onrender.com/auth/callback"]
+redirect_urls = [
+  "https://delifast-public.onrender.com/auth/callback",
+  "https://delifast-public.onrender.com/auth/login"
+]
