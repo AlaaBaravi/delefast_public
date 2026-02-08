@@ -1,9 +1,9 @@
 # Delifast Shopify App Configuration
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "49216002eaf8bc5c29a65a0a9d515deb"
+client_id = "af955fe755967af3f8bc9a39e13ad1d5"
 name = "delifast"
-application_url = "https://YOUR-DOMAIN.com"
+application_url = "https://delifast-public.onrender.com"
 embedded = true
 
 [build]
@@ -11,6 +11,8 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [webhooks]
+# Use a valid Shopify API version:
+# Recommended: 2024-10 (stable) or 2025-01 (if your code supports it)
 api_version = "2024-10"
 
   # =========================
@@ -58,4 +60,7 @@ api_version = "2024-10"
 scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields"
 
 [auth]
-redirect_urls = ["https://YOUR-DOMAIN.com/auth/callback"]
+redirect_urls = [
+  "https://delifast-public.onrender.com/auth/callback",
+  "https://delifast-public.onrender.com/auth/login"
+]
