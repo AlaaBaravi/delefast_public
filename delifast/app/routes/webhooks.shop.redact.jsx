@@ -1,7 +1,7 @@
-/**
- * Mandatory compliance webhook: shop/redact
- * Shopify sends this after app uninstall to delete shop data you stored.
- */
+export const loader = async () => {
+  return new Response("Method Not Allowed", { status: 405 });
+};
+
 export const action = async ({ request }) => {
   const [{ authenticate }, { logger }, { default: prisma }] = await Promise.all([
     import("../shopify.server"),
@@ -10,36 +10,14 @@ export const action = async ({ request }) => {
   ]);
 
   try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
+    const { shop } = await authenticate.webhook(request);
 
-    logger.info(
-      `Received ${topic} compliance webhook`,
-      { shop, payload },
-      shop
-    );
-
-    // Optional: delete everything you store for this shop
-    try {
-      // Example ideas (adjust for your schema):
-      // await prisma.order.deleteMany({ where: { shop } });
-      // await prisma.job.deleteMany({ where: { shop } });
-      // await prisma.session.deleteMany({ where: { shop } });
-    } catch (dbErr) {
-      logger.warning(
-        "Shop redact DB cleanup skipped/failed",
-        { error: dbErr?.message || String(dbErr) },
-        shop
-      );
-    }
+    // Optional: delete shop data you store
+    // await prisma.someTable.deleteMany({ where: { shop } });
 
     return new Response(null, { status: 200 });
   } catch (error) {
-    logger?.error?.("Compliance webhook authentication failed", {
-      error: error?.message || String(error),
-      method: request.method,
-      url: request.url,
-    });
-
+    logger?.error?.("Webhook auth failed", { error: error?.message || String(error) });
     return new Response("Unauthorized", { status: 401 });
   }
 };
