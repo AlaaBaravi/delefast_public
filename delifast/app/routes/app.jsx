@@ -6,10 +6,28 @@
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { authenticate } from "../shopify.server";
+import { authenticate, registerWebhooks } from "../shopify.server";
+import { logger } from "../services/logger.server";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  // ✅ MUST return session
+  const { session } = await authenticate.admin(request);
+
+  // ✅ Register webhooks (safe to call multiple times)
+  try {
+    await registerWebhooks({ session });
+    logger.info(
+      "Webhooks registered from app.jsx loader",
+      { shop: session.shop },
+      session.shop
+    );
+  } catch (e) {
+    logger.error(
+      "Webhook registration failed from app.jsx loader",
+      { error: e?.message || String(e), shop: session?.shop },
+      session?.shop
+    );
+  }
 
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
