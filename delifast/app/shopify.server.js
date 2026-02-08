@@ -51,3 +51,5 @@ const shopify = shopifyApp({
 export default shopify;
 export const authenticate = shopify.authenticate;
 export const registerWebhooks = shopify.registerWebhooks;
+export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
+
