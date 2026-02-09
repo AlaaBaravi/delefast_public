@@ -1,21 +1,20 @@
-import crypto from "crypto";
+// app/webhooks.verify.server.js
 
-// This function verifies the Shopify webhook signature using HMAC
-export async function verifyWebhook(request) {
-  const rawBody = await request.text();
+import crypto from 'crypto';
 
-  const hmac = request.headers.get("X-Shopify-Hmac-Sha256") || "";
-  const generated = crypto
-    .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
-    .update(rawBody, "utf8")
-    .digest("base64");
+export const verifyShopifyWebhook = async (request) => {
+  const hmacHeader = request.headers.get('X-Shopify-Hmac-Sha256');
+  const body = await request.text();  // Get raw body content of the request
+  const secret = process.env.SHOPIFY_API_SECRET_KEY;  // Set your secret key
 
-  if (generated !== hmac) {
-    throw new Response("Unauthorized", { status: 401 });
-  }
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(body, 'utf8')
+    .digest('base64');
 
-  return JSON.parse(rawBody);
-}
+  const isVerified = hash === hmacHeader;
 
-// ✅ Export `verifyShopifyWebhook` as an alias to `verifyWebhook` for backward compatibility
-export const verifyShopifyWebhook = verifyWebhook;
+  return {
+    ok: isVerified,
+  };
+};
