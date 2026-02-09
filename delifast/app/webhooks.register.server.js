@@ -1,80 +1,51 @@
 import { shopifyApi, ApiVersion } from "@shopify/shopify-api";
 
-const api = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: (process.env.SCOPES || "").split(","),
-  hostName: new URL(process.env.SHOPIFY_APP_URL).host,
-  apiVersion: ApiVersion.October25,
-  isEmbeddedApp: true,
-});
+export async function registerMandatoryWebhooks(session) {
+  const shopify = shopifyApi({
+    apiKey: process.env.SHOPIFY_API_KEY,
+    apiSecretKey: process.env.SHOPIFY_API_SECRET,
+    scopes: (process.env.SCOPES || "").split(","),
+    hostName: new URL(process.env.SHOPIFY_APP_URL).host,
+    apiVersion: ApiVersion.October25,
+    isEmbeddedApp: true,
+  });
 
-export async function registerAllWebhooks(session) {
+  const client = new shopify.clients.Graphql({ session });
+
   const baseUrl = process.env.SHOPIFY_APP_URL;
 
-  const registrations = [
-    {
-      topic: "CUSTOMERS_DATA_REQUEST",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/customers/data_request`,
-        format: "JSON",
-      },
-    },
-    {
-      topic: "CUSTOMERS_REDACT",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/customers/redact`,
-        format: "JSON",
-      },
-    },
-    {
-      topic: "SHOP_REDACT",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/shop/redact`,
-        format: "JSON",
-      },
-    },
-    {
-      topic: "ORDERS_CREATE",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/orders/create`,
-        format: "JSON",
-      },
-    },
-    {
-      topic: "ORDERS_PAID",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/orders/paid`,
-        format: "JSON",
-      },
-    },
-    {
-      topic: "ORDERS_UPDATED",
-      webhookSubscription: {
-        callbackUrl: `${baseUrl}/webhooks/orders/updated`,
-        format: "JSON",
-      },
-    },
+  const webhooks = [
+    { topic: "CUSTOMERS_DATA_REQUEST", path: "/webhooks/customers/data_request" },
+    { topic: "CUSTOMERS_REDACT", path: "/webhooks/customers/redact" },
+    { topic: "SHOP_REDACT", path: "/webhooks/shop/redact" },
   ];
 
-  const client = new api.clients.Graphql({ session });
-
-  for (const r of registrations) {
-    await client.query({
+  for (const w of webhooks) {
+    const res = await client.query({
       data: {
         query: `
           mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
             webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
-              userErrors { field message }
+              userErrors { message }
               webhookSubscription { id }
             }
           }
         `,
         variables: {
-          topic: r.topic,
-          webhookSubscription: r.webhookSubscription,
+          topic: w.topic,
+          webhookSubscription: {
+            callbackUrl: `${baseUrl}${w.path}`,
+            format: "JSON",
+          },
         },
       },
     });
+
+    const errors = res?.body?.data?.webhookSubscriptionCreate?.userErrors || [];
+    if (errors.length) {
+      console.error("Webhook create error:", w.topic, errors);
+    } else {
+      console.log("Webhook registered:", w.topic);
+    }
   }
 }
