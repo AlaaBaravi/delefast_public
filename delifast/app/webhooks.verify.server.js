@@ -1,27 +1,17 @@
 import crypto from "crypto";
 
-export async function verifyShopifyWebhook(request) {
-  const hmac = request.headers.get("x-shopify-hmac-sha256");
-  const topic = request.headers.get("x-shopify-topic");
-  const shop = request.headers.get("x-shopify-shop-domain");
+export async function verifyWebhook(request) {
+  const rawBody = await request.text();
+  const hmac = request.headers.get("X-Shopify-Hmac-Sha256") || "";
 
-  const bodyText = await request.text();
-  const secret = process.env.SHOPIFY_API_SECRET || "";
-
-  const digest = crypto
-    .createHmac("sha256", secret)
-    .update(bodyText, "utf8")
+  const generated = crypto
+    .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+    .update(rawBody, "utf8")
     .digest("base64");
 
-  const safeEqual =
-    hmac &&
-    digest &&
-    crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(digest));
+  if (generated !== hmac) {
+    throw new Response("Unauthorized", { status: 401 });
+  }
 
-  return {
-    ok: Boolean(safeEqual),
-    topic,
-    shop,
-    bodyText,
-  };
+  return JSON.parse(rawBody);
 }
