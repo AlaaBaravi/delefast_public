@@ -1,4 +1,4 @@
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
+import { verifyWebhook } from "../webhooks.verify.server";
 
 export const action = async ({ request }) => {
   const v = await verifyShopifyWebhook(request);
