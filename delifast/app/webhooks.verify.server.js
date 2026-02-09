@@ -1,5 +1,6 @@
 import crypto from "crypto";
 
+// This function verifies the Shopify webhook signature using HMAC
 export async function verifyWebhook(request) {
   const rawBody = await request.text();
 
@@ -13,6 +14,8 @@ export async function verifyWebhook(request) {
     throw new Response("Unauthorized", { status: 401 });
   }
 
-  // Shopify sends JSON
   return JSON.parse(rawBody);
 }
+
+// ✅ Export `verifyShopifyWebhook` as an alias to `verifyWebhook` for backward compatibility
+export const verifyShopifyWebhook = verifyWebhook;
