@@ -1,18 +1,19 @@
 import { shopifyApi, ApiVersion } from "@shopify/shopify-api";
 
 export async function registerMandatoryWebhooks(session) {
+  const appUrl = process.env.SHOPIFY_APP_URL;
+  if (!appUrl) throw new Error("Missing SHOPIFY_APP_URL env var");
+
   const shopify = shopifyApi({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET,
-    scopes: (process.env.SCOPES || "").split(","),
-    hostName: new URL(process.env.SHOPIFY_APP_URL).host,
+    scopes: (process.env.SCOPES || "").split(",").filter(Boolean),
+    hostName: new URL(appUrl).host,
     apiVersion: ApiVersion.October25,
     isEmbeddedApp: true,
   });
 
   const client = new shopify.clients.Graphql({ session });
-
-  const baseUrl = process.env.SHOPIFY_APP_URL;
 
   const webhooks = [
     { topic: "CUSTOMERS_DATA_REQUEST", path: "/webhooks/customers/data_request" },
@@ -26,7 +27,7 @@ export async function registerMandatoryWebhooks(session) {
         query: `
           mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
             webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
-              userErrors { message }
+              userErrors { field message }
               webhookSubscription { id }
             }
           }
@@ -34,7 +35,7 @@ export async function registerMandatoryWebhooks(session) {
         variables: {
           topic: w.topic,
           webhookSubscription: {
-            callbackUrl: `${baseUrl}${w.path}`,
+            callbackUrl: `${appUrl}${w.path}`,
             format: "JSON",
           },
         },
@@ -43,9 +44,9 @@ export async function registerMandatoryWebhooks(session) {
 
     const errors = res?.body?.data?.webhookSubscriptionCreate?.userErrors || [];
     if (errors.length) {
-      console.error("Webhook create error:", w.topic, errors);
+      console.error("[GDPR] webhook create error", w.topic, errors);
     } else {
-      console.log("Webhook registered:", w.topic);
+      console.log("[GDPR] webhook registered", w.topic);
     }
   }
 }
