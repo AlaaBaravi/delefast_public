@@ -10,7 +10,6 @@ export const action = async ({ request }) => {
 
     return new Response("OK", { status: 200 });
   } catch (error) {
-    // Catching any errors that happen during verification
     console.error("Webhook verification failed:", error);
     return new Response("Internal Server Error", { status: 500 });
   }
