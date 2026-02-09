@@ -5,7 +5,7 @@ import { registerMandatoryWebhooks } from "../webhooks.register.server";
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
 
-  // Register mandatory GDPR webhooks
+  // ✅ Register mandatory GDPR webhooks right after install/auth
   await registerMandatoryWebhooks(session);
 
   return null;
