@@ -47,9 +47,11 @@ export const verifyShopifyWebhook = async (request) => {
 
 // Adding custom response headers for Shopify (useful for SSR or API responses)
 export const addDocumentResponseHeaders = (headers) => {
-  headers.set('X-Shopify-Shop-Domain', process.env.SHOPIFY_SHOP_DOMAIN); // Your Shopify store domain
-  headers.set('X-Shopify-App-Bridge', 'true');
-  return headers;
+  const newHeaders = new Headers(headers); // Ensure headers are a valid Headers object
+
+  newHeaders.set('X-Shopify-Shop-Domain', process.env.SHOPIFY_SHOP_DOMAIN); // Your Shopify store domain
+  newHeaders.set('X-Shopify-App-Bridge', 'true');
+  return newHeaders;
 };
 
 // Shopify login function (newly added)
