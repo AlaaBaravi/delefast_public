@@ -1,8 +1,9 @@
 // app/routes/webhooks.app.uninstalled.jsx
 
-import { verifyShopifyWebhook } from "../webhooks.verify.server";  // Correct import
+import { verifyShopifyWebhook } from "../webhooks.verify.server";
 import { redirect } from "react-router";
 
+// Action handler for uninstallation webhook
 export const action = async ({ request }) => {
   try {
     const v = await verifyShopifyWebhook(request);  // Verifying webhook
@@ -11,7 +12,7 @@ export const action = async ({ request }) => {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Handle the uninstallation logic (e.g., cleaning up resources)
+    // Handle the uninstallation logic here (remove resources, etc.)
 
     return new Response("OK", { status: 200 });
   } catch (error) {
