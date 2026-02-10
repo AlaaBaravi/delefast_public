@@ -44,3 +44,10 @@ export const verifyShopifyWebhook = async (request) => {
   const isVerified = hash === hmacHeader;
   return { ok: isVerified };
 };
+
+// Adding custom response headers for Shopify (useful for SSR or API responses)
+export const addDocumentResponseHeaders = (headers) => {
+  headers.set('X-Shopify-Shop-Domain', process.env.SHOPIFY_SHOP_DOMAIN); // Your Shopify store domain
+  headers.set('X-Shopify-App-Bridge', 'true');
+  return headers;
+};
