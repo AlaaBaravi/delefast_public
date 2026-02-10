@@ -51,3 +51,19 @@ export const addDocumentResponseHeaders = (headers) => {
   headers.set('X-Shopify-App-Bridge', 'true');
   return headers;
 };
+
+// Shopify login function (newly added)
+export const login = async (request) => {
+  const url = new URL(request.url);
+  const shop = url.searchParams.get('shop');
+  
+  // Check if a shop parameter exists in the URL
+  if (shop) {
+    const redirectUri = `${process.env.SHOPIFY_APP_URL}/auth/callback`; // Replace with your app's callback URL
+    const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${process.env.SCOPES}&redirect_uri=${redirectUri}&state=random_state_value`;
+
+    return { redirectUrl: authUrl };
+  }
+
+  return { error: 'No shop parameter found in the request URL' };
+};
