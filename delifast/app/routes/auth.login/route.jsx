@@ -2,13 +2,11 @@
 
 import { redirect, Form, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
-import styles from "./styles.module.css";
+import styles from "./styles.module.css";  // Ensure this path is correct
 
-// Loader to handle the login logic and redirection
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
 
-  // Redirect if shop domain is provided
   if (url.searchParams.get("shop")) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
@@ -22,9 +20,9 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>Welcome to [your app]</h1>
+        <h1 className={styles.heading}>A short heading about [your app]</h1>
         <p className={styles.text}>
-          Log in to your Shopify store and get started.
+          A tagline about [your app] that describes your value proposition.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
