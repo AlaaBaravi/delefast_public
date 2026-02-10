@@ -1,8 +1,11 @@
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
+// app/routes/webhooks.app.scopes_update.jsx
+
+import { verifyShopifyWebhook } from "../webhooks.verify.server";  // Import the correct function
+import { redirect } from "react-router";
 
 export const action = async ({ request }) => {
   try {
-    const v = await verifyShopifyWebhook(request); // Verifying webhook
+    const v = await verifyShopifyWebhook(request);  // Verifying webhook
 
     if (!v.ok) {
       return new Response("Unauthorized", { status: 401 });
@@ -10,7 +13,6 @@ export const action = async ({ request }) => {
 
     return new Response("OK", { status: 200 });
   } catch (error) {
-    // Catching any errors that happen during verification
     console.error("Webhook verification failed:", error);
     return new Response("Internal Server Error", { status: 500 });
   }
