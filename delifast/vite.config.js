@@ -55,4 +55,11 @@ export default defineConfig({
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },
+  css: {
+    modules: {
+      // Ensure CSS Modules are enabled
+      scopeBehaviour: 'local',  // This ensures the local scoping of CSS classes
+      generateScopedName: '[name]__[local]___[hash:base64:5]', // Unique class name generation
+    },
+  },
 });
