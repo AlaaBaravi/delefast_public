@@ -1,42 +1,46 @@
-import "@shopify/shopify-app-react-router/adapters/node";
-import { ApiVersion, AppDistribution, shopifyApp } from "@shopify/shopify-app-react-router/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
-import prisma from "./db.server";
+// app/shopify.server.js
 
-const shopify = shopifyApp({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-  apiVersion: ApiVersion.October25,
-  scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL || "",
-  authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
-  distribution: AppDistribution.AppStore,
+import fetch from 'node-fetch';
+import crypto from 'crypto';
 
-  // You can keep this map for reference (not used for registration in our fix)
-  webhooks: {
-    ORDERS_CREATE: { topic: "orders/create", route: "/webhooks/orders/create" },
-    ORDERS_PAID: { topic: "orders/paid", route: "/webhooks/orders/paid" },
-    ORDERS_UPDATED: { topic: "orders/updated", route: "/webhooks/orders/updated" },
+// Shopify authentication function
+export const authenticate = async (shop) => {
+  try {
+    const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: process.env.SHOPIFY_API_KEY,
+        client_secret: process.env.SHOPIFY_API_SECRET_KEY,
+        code: 'authorization_code_from_shop',
+      }),
+    });
 
-    CUSTOMERS_DATA_REQUEST: { topic: "customers/data_request", route: "/webhooks/customers/data_request" },
-    CUSTOMERS_REDACT: { topic: "customers/redact", route: "/webhooks/customers/redact" },
-    SHOP_REDACT: { topic: "shop/redact", route: "/webhooks/shop/redact" },
-  },
+    const data = await response.json();
+    if (response.ok) {
+      return data;
+    } else {
+      throw new Error('Authentication failed');
+    }
+  } catch (error) {
+    console.error('Error during authentication', error);
+    throw error;
+  }
+};
 
-  future: { expiringOfflineAccessTokens: true },
+// Verifying Shopify webhook using HMAC
+export const verifyShopifyWebhook = async (request) => {
+  const hmacHeader = request.headers.get('X-Shopify-Hmac-Sha256');
+  const body = await request.text();
+  const secret = process.env.SHOPIFY_API_SECRET_KEY;
 
-  ...(process.env.SHOP_CUSTOM_DOMAIN ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] } : {}),
-});
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(body, 'utf8')
+    .digest('base64');
 
-export default shopify;
-
-export const apiVersion = ApiVersion.October25;
-export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
-
-export const authenticate = shopify.authenticate;
-export const unauthenticated = shopify.unauthenticated;
-export const login = shopify.login;
-
-// DO NOT export registerWebhooks anymore (we will register via GraphQL after install)
-export const sessionStorage = shopify.sessionStorage;
+  const isVerified = hash === hmacHeader;
+  return { ok: isVerified };
+};
