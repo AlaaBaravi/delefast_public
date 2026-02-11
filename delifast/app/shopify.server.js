@@ -44,21 +44,30 @@ export const verifyShopifyWebhook = async (request) => {
 };
 
 // Adding custom response headers for Shopify (useful for SSR or API responses)
-export const addDocumentResponseHeaders = (headers) => {
-  const newHeaders = new Headers(headers || {});
+export const addDocumentResponseHeaders = (headers = {}) => {
+  const validHeaders = {};
 
-  // Ensure header keys are strings
-  const validHeaders = Object.entries(newHeaders).reduce((acc, [key, value]) => {
-    if (typeof key === 'string' && typeof value === 'string') {
-      acc[key] = value;
-    } else {
-      console.warn(`Invalid header key or value: ${key} => ${value}`);
+  // If headers is already a Headers object, iterate properly
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      if (typeof key === 'string' && typeof value === 'string') {
+        validHeaders[key] = value;
+      }
+    });
+  } else {
+    // Otherwise assume it's a plain object
+    for (const [key, value] of Object.entries(headers)) {
+      if (typeof key === 'string' && typeof value === 'string') {
+        validHeaders[key] = value;
+      } else {
+        console.warn(`Invalid header key or value: ${String(key)} => ${value}`);
+      }
     }
-    return acc;
-  }, {});
+  }
 
   // Set Shopify-specific headers
-  validHeaders['X-Shopify-Shop-Domain'] = process.env.SHOPIFY_SHOP_DOMAIN || 'unknown';
+  validHeaders['X-Shopify-Shop-Domain'] =
+    process.env.SHOPIFY_SHOP_DOMAIN || 'unknown';
   validHeaders['X-Shopify-App-Bridge'] = 'true';
 
   return new Headers(validHeaders);
