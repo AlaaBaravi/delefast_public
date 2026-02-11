@@ -45,12 +45,16 @@ export const verifyShopifyWebhook = async (request) => {
 
 // Adding custom response headers for Shopify (useful for SSR or API responses)
 export const addDocumentResponseHeaders = (headers) => {
-  // Ensure the headers parameter is a valid object
+  // Ensure headers parameter is a valid object before passing it into Headers
   const newHeaders = new Headers(headers || {});
 
-  // Set the custom Shopify headers (ensure values are strings)
-  newHeaders.set('X-Shopify-Shop-Domain', String(process.env.SHOPIFY_SHOP_DOMAIN)); // Your Shopify store domain
-  newHeaders.set('X-Shopify-App-Bridge', 'true');  // Make sure it's a string
+  // Set custom Shopify headers
+  try {
+    newHeaders.set('X-Shopify-Shop-Domain', String(process.env.SHOPIFY_SHOP_DOMAIN)); // Your Shopify store domain
+    newHeaders.set('X-Shopify-App-Bridge', 'true');
+  } catch (error) {
+    console.error("Error setting headers: ", error);
+  }
 
   return newHeaders;
 };
@@ -60,7 +64,7 @@ export const login = async (request) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get('shop');
   
-  // Check if a shop parameter exists in the URL
+  // Check if shop parameter exists in the URL
   if (shop) {
     const redirectUri = `${process.env.SHOPIFY_APP_URL}/auth/callback`; // Replace with your app's callback URL
     const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${process.env.SCOPES}&redirect_uri=${redirectUri}&state=random_state_value`;
