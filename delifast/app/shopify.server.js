@@ -1,5 +1,3 @@
-// app/shopify.server.js
-
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 
@@ -45,10 +43,6 @@ export const verifyShopifyWebhook = async (request) => {
   return { ok: isVerified };
 };
 
-// app/shopify.server.js
-
-// app/shopify.server.js
-
 // Adding custom response headers for Shopify (useful for SSR or API responses)
 export const addDocumentResponseHeaders = (headers) => {
   // Ensure the headers parameter is a valid object
@@ -60,8 +54,6 @@ export const addDocumentResponseHeaders = (headers) => {
 
   return newHeaders;
 };
-
-
 
 // Shopify login function (newly added)
 export const login = async (request) => {
