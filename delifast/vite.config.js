@@ -55,10 +55,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },
-  // Externalize node-fetch so it's not bundled into the client-side
-  build: {
-    rollupOptions: {
-      external: ['node-fetch'],
-    },
-  },
 });

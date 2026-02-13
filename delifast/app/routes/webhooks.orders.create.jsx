@@ -1,16 +1,30 @@
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
+/**
+ * Webhook Handler: orders/create
+ * Triggered when a new order is created in Shopify
+ */
+
+import { authenticate } from "../shopify.server";
+import { handleOrderCreated } from "../services/orderHandler.server";
+import { logger } from "../services/logger.server";
 
 export const action = async ({ request }) => {
+  const { shop, topic, payload, admin } = await authenticate.webhook(request);
+
+  logger.info(`Received ${topic} webhook`, {
+    orderId: payload.id,
+    orderNumber: payload.name,
+  }, shop);
+
   try {
-    const v = await verifyShopifyWebhook(request); // Verifying webhook
-
-    if (!v.ok) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    return new Response("OK", { status: 200 });
+    // Process the order asynchronously
+    await handleOrderCreated(shop, payload, admin);
   } catch (error) {
-    console.error("Webhook verification failed:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    logger.error(`Error processing ${topic} webhook`, {
+      error: error.message,
+      orderId: payload.id,
+    }, shop);
   }
+
+  // Always return 200 to acknowledge receipt
+  return new Response();
 };

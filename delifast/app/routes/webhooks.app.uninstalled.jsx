@@ -1,22 +1,16 @@
-// app/routes/webhooks.app.uninstalled.jsx
+import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
-import { redirect } from "react-router";
-
-// Action handler for uninstallation webhook
 export const action = async ({ request }) => {
-  try {
-    const v = await verifyShopifyWebhook(request);  // Verifying webhook
+  const { shop, session, topic } = await authenticate.webhook(request);
 
-    if (!v.ok) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+  console.log(`Received ${topic} webhook for ${shop}`);
 
-    // Handle the uninstallation logic here (remove resources, etc.)
-
-    return new Response("OK", { status: 200 });
-  } catch (error) {
-    console.error("Webhook verification failed:", error);
-    return new Response("Internal Server Error", { status: 500 });
+  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
+  // If this webhook already ran, the session may have been deleted previously.
+  if (session) {
+    await db.session.deleteMany({ where: { shop } });
   }
+
+  return new Response();
 };

@@ -1,22 +1,22 @@
-// app/routes/webhooks.app.scopes_update.jsx
+import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
-import { redirect } from "react-router";
-
-// Action handler for webhook verification
 export const action = async ({ request }) => {
-  try {
-    const v = await verifyShopifyWebhook(request);  // Verifying webhook
+  const { payload, session, topic, shop } = await authenticate.webhook(request);
 
-    if (!v.ok) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+  console.log(`Received ${topic} webhook for ${shop}`);
+  const current = payload.current;
 
-    // Your logic to process the webhook (update scopes or settings, etc.)
-
-    return new Response("OK", { status: 200 });
-  } catch (error) {
-    console.error("Webhook verification failed:", error);
-    return new Response("Internal Server Error", { status: 500 });
+  if (session) {
+    await db.session.update({
+      where: {
+        id: session.id,
+      },
+      data: {
+        scope: current.toString(),
+      },
+    });
   }
+
+  return new Response();
 };
