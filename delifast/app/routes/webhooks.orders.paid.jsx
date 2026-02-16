@@ -1,13 +1,17 @@
 import { authenticate } from "../shopify.server";
 import { handleOrderPaid } from "../services/orderHandler.server";
 
-export const action = async ({ request }) => {
+export async function action({ request }) {
   try {
-    const { shop, payload, admin } = await authenticate.webhook(request);
-    await handleOrderPaid(shop, payload, admin);
-    return new Response("ok", { status: 200 });
-  } catch (e) {
-    console.error("WEBHOOK orders/paid failed:", e);
-    return new Response("unauthorized", { status: 401 });
+    const { shop, admin, payload } = await authenticate.webhook(request);
+
+    const order = typeof payload === "string" ? JSON.parse(payload) : payload;
+
+    await handleOrderPaid(shop, order, admin);
+
+    return new Response("OK", { status: 200 });
+  } catch (err) {
+    console.error("orders/paid webhook error:", err);
+    return new Response("Unauthorized", { status: 401 });
   }
-};
+}
