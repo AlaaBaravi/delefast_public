@@ -14,34 +14,70 @@ import {
 } from "../utils/statusMapping";
 
 /**
+ * Ensure a shipment row exists so the order appears in UI
+ * even if auto-send is disabled.
+ */
+async function ensureShipmentRow(shop, order, initialStatus = "pending") {
+  const orderId = String(order.id);
+  const orderNumber = order.order_number || order.name || orderId;
+
+  return prisma.shipment.upsert({
+    where: {
+      shop_shopifyOrderId: {
+        shop,
+        shopifyOrderId: orderId,
+      },
+    },
+    update: {
+      // keep existing shipmentId if present; do not override real data
+      shopifyOrderNumber: orderNumber,
+      // only set "pending" if the current status is empty/new-ish
+      status: initialStatus,
+      statusDetails: initialStatus === "pending"
+        ? "Waiting for auto-send or manual send"
+        : null,
+    },
+    create: {
+      shop,
+      shopifyOrderId: orderId,
+      shopifyOrderNumber: orderNumber,
+      status: initialStatus,
+      statusDetails: initialStatus === "pending"
+        ? "Waiting for auto-send or manual send"
+        : null,
+    },
+  });
+}
+
+/**
  * Handle order created webhook
- * @param {string} shop - Shop domain
- * @param {Object} order - Shopify order data
- * @param {Object} admin - Shopify Admin API client
  */
 export async function handleOrderCreated(shop, order, admin) {
-  logger.info('Processing order created', {
+  logger.info("Processing order created", {
     orderId: order.id,
-    orderNumber: order.name
+    orderNumber: order.name,
   }, shop);
 
-  // Check if should auto-send on create
-  if (await shouldAutoSend(shop, order, 'created')) {
+  // ✅ make sure it appears in UI even if auto-send is off
+  await ensureShipmentRow(shop, order, "pending");
+
+  // Auto-send on create (if enabled)
+  if (await shouldAutoSend(shop, order, "created")) {
     await sendOrderToDelifast(shop, order, admin);
   }
 }
 
 /**
  * Handle order paid webhook
- * @param {string} shop - Shop domain
- * @param {Object} order - Shopify order data
- * @param {Object} admin - Shopify Admin API client
  */
 export async function handleOrderPaid(shop, order, admin) {
-  logger.info('Processing order paid', {
+  logger.info("Processing order paid", {
     orderId: order.id,
-    orderNumber: order.name
+    orderNumber: order.name,
   }, shop);
+
+  // ✅ ensure it appears (and mark as ready) even if auto-send is off
+  await ensureShipmentRow(shop, order, "ready");
 
   // Check if already sent
   const existing = await prisma.shipment.findUnique({
@@ -53,43 +89,35 @@ export async function handleOrderPaid(shop, order, admin) {
     },
   });
 
-  if (existing?.shipmentId) {
-    logger.debug('Order already sent to Delifast', {
+  if (existing?.shipmentId && !existing.isTemporaryId) {
+    logger.debug("Order already sent to Delifast", {
       orderId: order.id,
-      shipmentId: existing.shipmentId
+      shipmentId: existing.shipmentId,
     }, shop);
     return;
   }
 
-  // Check if should auto-send on paid
-  if (await shouldAutoSend(shop, order, 'paid')) {
+  // Auto-send on paid (if enabled)
+  if (await shouldAutoSend(shop, order, "paid")) {
     await sendOrderToDelifast(shop, order, admin);
   }
 }
 
 /**
  * Handle order updated webhook
- * @param {string} shop - Shop domain
- * @param {Object} order - Shopify order data
  */
 export async function handleOrderUpdated(shop, order) {
-  // Currently we don't need to do anything specific on update
-  // Status sync is handled by the scheduled job
-  logger.debug('Order updated', { orderId: order.id }, shop);
+  logger.debug("Order updated", { orderId: order.id }, shop);
 }
 
 /**
  * Send order to Delifast
- * @param {string} shop - Shop domain
- * @param {Object} order - Shopify order data
- * @param {Object} admin - Shopify Admin API client (optional)
- * @returns {Object} Result with shipmentId
  */
 export async function sendOrderToDelifast(shop, order, admin = null) {
   const orderId = String(order.id);
   const orderNumber = order.order_number || order.name || orderId;
 
-  logger.info('Sending order to Delifast', { orderId, orderNumber }, shop);
+  logger.info("Sending order to Delifast", { orderId, orderNumber }, shop);
 
   try {
     // Prepare order data
@@ -118,10 +146,10 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
       update: {
         shipmentId,
         isTemporaryId: isTemporary,
-        status: 'new',
-        statusDetails: isTemporary ? 'Awaiting real shipment ID' : 'Shipment created',
+        status: "new",
+        statusDetails: isTemporary ? "Awaiting real shipment ID" : "Shipment created",
         sentAt: new Date(),
-        nextLookupAt: isTemporary ? new Date(Date.now() + 15 * 60 * 1000) : null, // 15 min
+        nextLookupAt: isTemporary ? new Date(Date.now() + 15 * 60 * 1000) : null,
       },
       create: {
         shop,
@@ -129,8 +157,8 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
         shopifyOrderNumber: orderNumber,
         shipmentId,
         isTemporaryId: isTemporary,
-        status: 'new',
-        statusDetails: isTemporary ? 'Awaiting real shipment ID' : 'Shipment created',
+        status: "new",
+        statusDetails: isTemporary ? "Awaiting real shipment ID" : "Shipment created",
         nextLookupAt: isTemporary ? new Date(Date.now() + 15 * 60 * 1000) : null,
       },
     });
@@ -138,7 +166,6 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
     // Update Shopify order with metafields and tags
     if (admin) {
       try {
-        // Add metafields
         await admin.graphql(
           `#graphql
           mutation updateOrderMetafields($input: OrderInput!) {
@@ -152,31 +179,15 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
               input: {
                 id: `gid://shopify/Order/${orderId}`,
                 metafields: [
-                  {
-                    namespace: 'delifast',
-                    key: 'shipment_id',
-                    value: shipmentId,
-                    type: 'single_line_text_field',
-                  },
-                  {
-                    namespace: 'delifast',
-                    key: 'status',
-                    value: 'new',
-                    type: 'single_line_text_field',
-                  },
-                  {
-                    namespace: 'delifast',
-                    key: 'is_temporary',
-                    value: String(isTemporary),
-                    type: 'single_line_text_field',
-                  },
+                  { namespace: "delifast", key: "shipment_id", value: shipmentId, type: "single_line_text_field" },
+                  { namespace: "delifast", key: "status", value: "new", type: "single_line_text_field" },
+                  { namespace: "delifast", key: "is_temporary", value: String(isTemporary), type: "single_line_text_field" },
                 ],
               },
             },
           }
         );
 
-        // Add tags
         await admin.graphql(
           `#graphql
           mutation addOrderTags($id: ID!, $tags: [String!]!) {
@@ -188,40 +199,33 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
           {
             variables: {
               id: `gid://shopify/Order/${orderId}`,
-              tags: [getShopifyTag('new'), 'delifast-sent'],
+              tags: [getShopifyTag("new"), "delifast-sent"],
             },
           }
         );
 
-        logger.debug('Updated Shopify order', { orderId }, shop);
+        logger.debug("Updated Shopify order", { orderId }, shop);
       } catch (shopifyError) {
-        // Don't fail the whole operation if Shopify update fails
-        logger.warning('Failed to update Shopify order', {
+        logger.warning("Failed to update Shopify order", {
           error: shopifyError.message,
-          orderId
+          orderId,
         }, shop);
       }
     }
 
-    logger.info('Order sent to Delifast successfully', {
+    logger.info("Order sent to Delifast successfully", {
       orderId,
-      shipmentId,
-      isTemporary
-    }, shop);
-
-    return {
-      success: true,
       shipmentId,
       isTemporary,
-    };
-
-  } catch (error) {
-    logger.error('Failed to send order to Delifast', {
-      orderId,
-      error: error.message
     }, shop);
 
-    // Save error state
+    return { success: true, shipmentId, isTemporary };
+  } catch (error) {
+    logger.error("Failed to send order to Delifast", {
+      orderId,
+      error: error.message,
+    }, shop);
+
     await prisma.shipment.upsert({
       where: {
         shop_shopifyOrderId: {
@@ -230,14 +234,14 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
         },
       },
       update: {
-        status: 'error',
+        status: "error",
         statusDetails: error.message,
       },
       create: {
         shop,
         shopifyOrderId: orderId,
         shopifyOrderNumber: orderNumber,
-        status: 'error',
+        status: "error",
         statusDetails: error.message,
       },
     });
@@ -248,10 +252,6 @@ export async function sendOrderToDelifast(shop, order, admin = null) {
 
 /**
  * Refresh order status from Delifast
- * @param {string} shop - Shop domain
- * @param {string} shopifyOrderId - Shopify order ID
- * @param {Object} admin - Shopify Admin API client (optional)
- * @returns {Object} Updated status info
  */
 export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
   const shipment = await prisma.shipment.findUnique({
@@ -263,28 +263,23 @@ export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
     },
   });
 
-  if (!shipment) {
-    throw new Error('Shipment not found');
-  }
+  if (!shipment) throw new Error("Shipment not found");
 
-  // Handle temporary IDs
   if (shipment.isTemporaryId || isTemporaryId(shipment.shipmentId)) {
-    logger.debug('Cannot refresh status for temporary ID', {
+    logger.debug("Cannot refresh status for temporary ID", {
       orderId: shopifyOrderId,
-      shipmentId: shipment.shipmentId
+      shipmentId: shipment.shipmentId,
     }, shop);
 
     return {
-      status: 'new',
-      statusDetails: 'This is a temporary ID. Please update with real shipment ID.',
+      status: "new",
+      statusDetails: "This is a temporary ID. Please update with real shipment ID.",
       isTemporary: true,
     };
   }
 
-  // Get status from Delifast
   const statusResult = await delifastClient.getShipmentStatus(shop, shipment.shipmentId);
 
-  // Update local record
   await prisma.shipment.update({
     where: {
       shop_shopifyOrderId: {
@@ -298,7 +293,6 @@ export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
     },
   });
 
-  // Update Shopify order
   if (admin) {
     try {
       await admin.graphql(
@@ -314,18 +308,8 @@ export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
             input: {
               id: `gid://shopify/Order/${shopifyOrderId}`,
               metafields: [
-                {
-                  namespace: 'delifast',
-                  key: 'status',
-                  value: statusResult.status,
-                  type: 'single_line_text_field',
-                },
-                {
-                  namespace: 'delifast',
-                  key: 'status_details',
-                  value: statusResult.statusDetails || '',
-                  type: 'single_line_text_field',
-                },
+                { namespace: "delifast", key: "status", value: statusResult.status, type: "single_line_text_field" },
+                { namespace: "delifast", key: "status_details", value: statusResult.statusDetails || "", type: "single_line_text_field" },
               ],
             },
           },
@@ -348,15 +332,15 @@ export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
         }
       );
     } catch (shopifyError) {
-      logger.warning('Failed to update Shopify order status', {
-        error: shopifyError.message
+      logger.warning("Failed to update Shopify order status", {
+        error: shopifyError.message,
       }, shop);
     }
   }
 
-  logger.info('Status refreshed', {
+  logger.info("Status refreshed", {
     orderId: shopifyOrderId,
-    status: statusResult.status
+    status: statusResult.status,
   }, shop);
 
   return statusResult;
@@ -364,10 +348,6 @@ export async function refreshOrderStatus(shop, shopifyOrderId, admin = null) {
 
 /**
  * Update shipment ID (replace temporary with real)
- * @param {string} shop - Shop domain
- * @param {string} shopifyOrderId - Shopify order ID
- * @param {string} newShipmentId - New shipment ID
- * @param {Object} admin - Shopify Admin API client (optional)
  */
 export async function updateShipmentId(shop, shopifyOrderId, newShipmentId, admin = null) {
   const shipment = await prisma.shipment.findUnique({
@@ -379,13 +359,10 @@ export async function updateShipmentId(shop, shopifyOrderId, newShipmentId, admi
     },
   });
 
-  if (!shipment) {
-    throw new Error('Shipment not found');
-  }
+  if (!shipment) throw new Error("Shipment not found");
 
   const oldShipmentId = shipment.shipmentId;
 
-  // Update record
   await prisma.shipment.update({
     where: {
       shop_shopifyOrderId: {
@@ -396,20 +373,19 @@ export async function updateShipmentId(shop, shopifyOrderId, newShipmentId, admi
     data: {
       shipmentId: newShipmentId,
       isTemporaryId: false,
-      status: 'new', // Reset status to be refreshed
+      status: "new",
       statusDetails: null,
       lookupAttempts: 0,
       nextLookupAt: null,
     },
   });
 
-  logger.info('Shipment ID updated', {
+  logger.info("Shipment ID updated", {
     orderId: shopifyOrderId,
     oldId: oldShipmentId,
-    newId: newShipmentId
+    newId: newShipmentId,
   }, shop);
 
-  // Update Shopify metafields
   if (admin) {
     try {
       await admin.graphql(
@@ -425,40 +401,23 @@ export async function updateShipmentId(shop, shopifyOrderId, newShipmentId, admi
             input: {
               id: `gid://shopify/Order/${shopifyOrderId}`,
               metafields: [
-                {
-                  namespace: 'delifast',
-                  key: 'shipment_id',
-                  value: newShipmentId,
-                  type: 'single_line_text_field',
-                },
-                {
-                  namespace: 'delifast',
-                  key: 'is_temporary',
-                  value: 'false',
-                  type: 'single_line_text_field',
-                },
+                { namespace: "delifast", key: "shipment_id", value: newShipmentId, type: "single_line_text_field" },
+                { namespace: "delifast", key: "is_temporary", value: "false", type: "single_line_text_field" },
               ],
             },
           },
         }
       );
     } catch (shopifyError) {
-      logger.warning('Failed to update Shopify metafields', {
-        error: shopifyError.message
+      logger.warning("Failed to update Shopify metafields", {
+        error: shopifyError.message,
       }, shop);
     }
   }
 
-  // Refresh status with new ID
   return refreshOrderStatus(shop, shopifyOrderId, admin);
 }
 
-/**
- * Get shipment by order ID
- * @param {string} shop - Shop domain
- * @param {string} shopifyOrderId - Shopify order ID
- * @returns {Object|null} Shipment record
- */
 export async function getShipment(shop, shopifyOrderId) {
   return prisma.shipment.findUnique({
     where: {
@@ -470,24 +429,16 @@ export async function getShipment(shop, shopifyOrderId) {
   });
 }
 
-/**
- * Get all shipments for a store
- * @param {string} shop - Shop domain
- * @param {Object} options - Query options
- * @returns {Object} Shipments and count
- */
 export async function getShipments(shop, options = {}) {
   const { status, limit = 50, offset = 0 } = options;
 
   const where = { shop };
-  if (status) {
-    where.status = status;
-  }
+  if (status) where.status = status;
 
   const [shipments, total] = await Promise.all([
     prisma.shipment.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
     }),
