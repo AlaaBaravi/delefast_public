@@ -1,21 +1,51 @@
-import { DeliveryMethod } from "@shopify/shopify-api";
+import "@shopify/shopify-api/adapters/node";
+import { shopifyApp } from "@shopify/shopify-app-react-router/server";
+import { DeliveryMethod, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import prisma from "./db.server";
 
-export async function registerWebhooks(shopify) {
-  await shopify.webhooks.register({
-    path: "/webhooks/customers/redact",
-    topic: "CUSTOMERS_REDACT",
-    deliveryMethod: DeliveryMethod.Http,
-  });
+export const shopify = shopifyApp({
+  apiKey: process.env.SHOPIFY_API_KEY,
+  apiSecretKey: process.env.SHOPIFY_API_SECRET,
+  apiVersion: LATEST_API_VERSION,
+  scopes: process.env.SCOPES ? process.env.SCOPES.split(",") : [],
+  appUrl: process.env.SHOPIFY_APP_URL,
+  authPathPrefix: "/auth",
 
-  await shopify.webhooks.register({
-    path: "/webhooks/customers/data_request",
-    topic: "CUSTOMERS_DATA_REQUEST",
-    deliveryMethod: DeliveryMethod.Http,
-  });
+  sessionStorage: new PrismaSessionStorage(prisma),
 
-  await shopify.webhooks.register({
-    path: "/webhooks/shop/redact",
-    topic: "SHOP_REDACT",
-    deliveryMethod: DeliveryMethod.Http,
-  });
-}
+  webhooks: {
+    APP_UNINSTALLED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/app/uninstalled",
+    },
+
+    ORDERS_CREATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/create",
+    },
+    ORDERS_PAID: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/paid",
+    },
+    ORDERS_UPDATED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/updated",
+    },
+  },
+
+  hooks: {
+    afterAuth: async ({ session }) => {
+      // Register webhooks after install/auth
+      await shopify.registerWebhooks({ session });
+    },
+  },
+
+  future: {
+    // keep these if you already enabled them
+    // (not required for this fix, but safe)
+    v3_webhookAdminContext: true,
+  },
+});
+
+export const authenticate = shopify.authenticate;
