@@ -7,7 +7,7 @@ export const action = async ({ request }) => {
     await handleOrderPaid(shop, payload, admin);
     return new Response("ok", { status: 200 });
   } catch (e) {
-    console.error("Webhook ORDERS_PAID failed:", e);
+    console.error("WEBHOOK orders/paid failed:", e);
     return new Response("unauthorized", { status: 401 });
   }
 };
