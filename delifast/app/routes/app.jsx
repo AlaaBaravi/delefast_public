@@ -7,9 +7,21 @@ import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
+import { registerMandatoryWebhooks } from "../webhooks.register.server";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  // ✅ authenticate admin and capture session
+  const { session } = await authenticate.admin(request);
+
+  // ✅ register webhooks using the SAME shopify instance (prevents 401)
+  // Safe: do not block app UI if registration fails
+  try {
+    if (session) {
+      await registerMandatoryWebhooks(session);
+    }
+  } catch (err) {
+    console.error("Webhook registration failed:", err);
+  }
 
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
