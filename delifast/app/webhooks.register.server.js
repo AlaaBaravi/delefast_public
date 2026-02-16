@@ -1,110 +1,84 @@
-// File: app/webhooks.register.server.js
+// File: webhooks.register.server.js
 
-import { shopifyApi, ApiVersion } from "@shopify/shopify-api";
+import { DeliveryMethod } from "@shopify/shopify-api";
+import { shopify } from "./shopify.server"; // ✅ use your existing shopify instance (from template)
 
 /**
- * Registers webhooks using the APP (GraphQL webhook subscriptions).
+ * Register app webhooks (Orders + optional GDPR).
  * IMPORTANT:
- * - These webhooks will be signed using your APP secret (SHOPIFY_API_SECRET),
- *   so authenticate.webhook(request) will validate correctly.
- * - Do NOT create webhooks manually from Shopify Admin.
+ * - Uses Shopify API v12 webhook registry (recommended).
+ * - DO NOT use GraphQL webhookSubscriptionCreate in v12.
  */
 export async function registerMandatoryWebhooks(session) {
-  const appUrl = process.env.SHOPIFY_APP_URL;
-  if (!appUrl) throw new Error("Missing SHOPIFY_APP_URL env var");
   if (!session?.shop) throw new Error("Missing session.shop");
+  const shop = session.shop;
 
-  // PrismaSessionStorage usually stores accessToken on session.accessToken
-  const accessToken = session.accessToken || session.access_token;
-  if (!accessToken) throw new Error("Session missing access token");
+  // ✅ Register webhooks using the official registry method
+  // Make sure these paths exist as routes in your app.
+  // Example: app/routes/webhooks.orders.create.jsx etc.
 
-  const apiVersion =
-    process.env.SHOPIFY_API_VERSION ||
-    ApiVersion.October25 ||
-    ApiVersion.January25;
-
-  const shopify = shopifyApi({
-    apiKey: process.env.SHOPIFY_API_KEY,
-    apiSecretKey: process.env.SHOPIFY_API_SECRET,
-    scopes: (process.env.SCOPES || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-    hostName: new URL(appUrl).host,
-    apiVersion,
-    isEmbeddedApp: true,
-  });
-
-  const gqlClient = new shopify.clients.Graphql({
-    session: {
-      id: session.id || `${session.shop}_${Date.now()}`,
-      shop: session.shop,
-      accessToken,
-      isOnline: false, // ✅ use OFFLINE token for webhooks
-      state: "state",
+  const handlers = {
+    ORDERS_CREATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/create",
     },
-  });
+    ORDERS_PAID: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/paid",
+    },
+    ORDERS_UPDATED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/updated",
+    },
 
-  // ✅ Add GDPR + ORDERS webhooks here
-  const webhooks = [
-    // GDPR (required)
-    { topic: "CUSTOMERS_DATA_REQUEST", path: "/webhooks/customers/data_request" },
-    { topic: "CUSTOMERS_REDACT", path: "/webhooks/customers/redact" },
-    { topic: "SHOP_REDACT", path: "/webhooks/shop/redact" },
+    // ❌ GDPR topics are throwing "FeatureDeprecatedError" for you right now.
+    // Leave them disabled until you confirm the exact required topics for your app + API version.
+    // CUSTOMERS_DATA_REQUEST: {
+    //   deliveryMethod: DeliveryMethod.Http,
+    //   callbackUrl: "/webhooks/customers/data_request",
+    // },
+    // CUSTOMERS_REDACT: {
+    //   deliveryMethod: DeliveryMethod.Http,
+    //   callbackUrl: "/webhooks/customers/redact",
+    // },
+    // SHOP_REDACT: {
+    //   deliveryMethod: DeliveryMethod.Http,
+    //   callbackUrl: "/webhooks/shop/redact",
+    // },
+  };
 
-    // Orders (your business logic)
-    { topic: "ORDERS_CREATE", path: "/webhooks/orders/create" },
-    { topic: "ORDERS_PAID", path: "/webhooks/orders/paid" },
-    { topic: "ORDERS_UPDATED", path: "/webhooks/orders/updated" }, // optional but useful
-  ];
-
-  const mutation = `
-    mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
-      webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
-        userErrors { field message }
-        webhookSubscription { id endpoint { callbackUrl } }
-      }
-    }
-  `;
-
-  const results = [];
-
-  for (const w of webhooks) {
-    const callbackUrl = new URL(w.path, appUrl).toString();
-
-    try {
-      const res = await gqlClient.query({
-        data: {
-          query: mutation,
-          variables: {
-            topic: w.topic,
-            webhookSubscription: {
-              callbackUrl,
-              format: "JSON",
-            },
-          },
-        },
-      });
-
-      const createResult = res?.body?.data?.webhookSubscriptionCreate;
-      const userErrors = createResult?.userErrors || [];
-      const subscription = createResult?.webhookSubscription;
-
-      if (userErrors.length) {
-        console.error("[WEBHOOKS] create error", w.topic, userErrors);
-        results.push({ topic: w.topic, ok: false, errors: userErrors });
-        continue;
-      }
-
-      console.log("[WEBHOOKS] registered", w.topic, subscription?.id, callbackUrl);
-      results.push({ topic: w.topic, ok: true, id: subscription?.id, callbackUrl });
-    } catch (err) {
-      console.error("[WEBHOOKS] registration failed", w.topic, err);
-      results.push({ topic: w.topic, ok: false, error: String(err) });
-    }
+  // ✅ register them in the registry
+  for (const [topic, cfg] of Object.entries(handlers)) {
+    shopify.webhooks.addHandlers({
+      [topic]: [cfg],
+    });
   }
 
-  return { success: results.every((r) => r.ok), details: results };
+  // ✅ Perform the actual registration against Shopify
+  const response = await shopify.webhooks.register({
+    session,
+  });
+
+  // response is an object keyed by topic
+  const details = Object.entries(response).map(([topic, arr]) => {
+    const item = Array.isArray(arr) ? arr[0] : arr;
+    return {
+      topic,
+      success: item?.success ?? false,
+      result: item?.result ?? null,
+      errors: item?.errors ?? null,
+    };
+  });
+
+  const success = details.every((d) => d.success);
+
+  if (!success) {
+    console.error("[WEBHOOKS] Some registrations failed", details);
+  } else {
+    console.log("[WEBHOOKS] Registered for shop:", shop);
+  }
+
+  return { success, details };
 }
 
 export default registerMandatoryWebhooks;
