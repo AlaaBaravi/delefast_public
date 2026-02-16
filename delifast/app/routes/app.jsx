@@ -9,16 +9,24 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { registerMandatoryWebhooks } from "../webhooks.register.server";
 
+// ✅ Register webhooks only ONCE per shop per server runtime (prevents duplicates)
+const registeredShops = globalThis.__registeredShops || new Set();
+globalThis.__registeredShops = registeredShops;
+
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
 
-  // register webhooks only on /app (avoid repeated registration on *.data requests)
   const url = new URL(request.url);
-  if (url.pathname === "/app") {
+
+  // ✅ Only on /app (not /app.data, not /app/orders.data, etc)
+  // ✅ Only once per shop to avoid duplicate webhook subscriptions
+  if (url.pathname === "/app" && session?.shop && !registeredShops.has(session.shop)) {
     try {
       await registerMandatoryWebhooks(session);
+      registeredShops.add(session.shop);
+      console.log(`[WEBHOOKS] Registered for shop: ${session.shop}`);
     } catch (err) {
-      console.error("Webhook registration failed:", err);
+      console.error("[WEBHOOKS] Registration failed:", err);
     }
   }
 
@@ -41,7 +49,6 @@ export default function App() {
   );
 }
 
-// Shopify needs React Router to catch some thrown responses, so that their headers are included in the response.
 export function ErrorBoundary() {
   return boundary.error(useRouteError());
 }
