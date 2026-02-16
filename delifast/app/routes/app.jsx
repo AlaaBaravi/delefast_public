@@ -1,23 +1,33 @@
-/**
- * App Layout
- * Main layout component for the Delifast Shopify App
- */
-
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { registerMandatoryWebhooks } from "../webhooks.register.server";
+import db from "../db.server";
 
 export const loader = async ({ request }) => {
-  // ✅ authenticate admin and capture session
   const { session } = await authenticate.admin(request);
 
-  // ✅ register webhooks using the SAME shopify instance (prevents 401)
-  // Safe: do not block app UI if registration fails
+  // Register webhooks only once per shop
   try {
-    if (session) {
-      await registerMandatoryWebhooks(session);
+    if (session?.shop) {
+      const shop = session.shop;
+
+      // Create a tiny table/flag record OR reuse an existing settings table if you have one.
+      // This assumes you have a "shopSettings" table. If you don't, tell me what tables you have in Prisma.
+      const existing = await db.shopSettings?.findUnique?.({ where: { shop } });
+
+      if (!existing?.webhooksRegistered) {
+        await registerMandatoryWebhooks(session);
+
+        if (db.shopSettings?.upsert) {
+          await db.shopSettings.upsert({
+            where: { shop },
+            create: { shop, webhooksRegistered: true },
+            update: { webhooksRegistered: true },
+          });
+        }
+      }
     }
   } catch (err) {
     console.error("Webhook registration failed:", err);
@@ -42,11 +52,8 @@ export default function App() {
   );
 }
 
-// Shopify needs React Router to catch some thrown responses, so that their headers are included in the response.
 export function ErrorBoundary() {
   return boundary.error(useRouteError());
 }
 
-export const headers = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
+export const headers = (headersArgs) => boundary.headers(headersArgs);
