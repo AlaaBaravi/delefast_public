@@ -1,4 +1,4 @@
-import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import "@shopify/polaris/build/esm/styles.css";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData } from "react-router";
 
