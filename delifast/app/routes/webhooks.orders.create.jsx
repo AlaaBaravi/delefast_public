@@ -1,13 +1,18 @@
 import { authenticate } from "../shopify.server";
 import { handleOrderCreated } from "../services/orderHandler.server";
 
-export const action = async ({ request }) => {
+export async function action({ request }) {
   try {
-    const { shop, payload, admin } = await authenticate.webhook(request);
-    await handleOrderCreated(shop, payload, admin);
-    return new Response("ok", { status: 200 });
-  } catch (e) {
-    console.error("Webhook ORDERS_CREATE failed:", e);
-    return new Response("unauthorized", { status: 401 });
+    const { shop, admin, payload } = await authenticate.webhook(request);
+
+    const order = typeof payload === "string" ? JSON.parse(payload) : payload;
+
+    await handleOrderCreated(shop, order, admin);
+
+    return new Response("OK", { status: 200 });
+  } catch (err) {
+    console.error("orders/create webhook error:", err);
+    // Shopify will retry if not 200
+    return new Response("Unauthorized", { status: 401 });
   }
-};
+}
