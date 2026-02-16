@@ -1,38 +1,42 @@
 // File: app/webhooks.register.server.js
 
 import { DeliveryMethod } from "@shopify/shopify-api";
-import { registerWebhooks } from "./shopify.server";
+import { registerWebhooks, sessionStorage } from "./shopify.server";
 
 /**
- * Register app webhooks for a shop session using the SAME Shopify instance
- * that powers authenticate.webhook().
+ * Registers webhooks using the OFFLINE session token.
  *
- * This prevents 401 "Unauthorized" verification failures caused by mixing
- * different shopifyApi() instances/configs.
+ * Why offline?
+ * - Webhook registration is an Admin GraphQL operation.
+ * - Using an online session (short-lived / user-based) can return 401 Unauthorized.
+ * - Offline session (app-level) is the correct token to use.
+ *
+ * Notes:
+ * - If offline session does not exist, you must uninstall + reinstall the app
+ *   (and delete old sessions) so Shopify issues a fresh offline token.
  */
 export async function registerMandatoryWebhooks(session) {
-  if (!session || !session.shop) throw new Error("Missing session.shop");
+  if (!session?.shop) {
+    throw new Error("Missing session.shop");
+  }
 
-  // IMPORTANT: This uses shopify.registerWebhooks() from shopify.server.js
-  // so the signature verification matches authenticate.webhook().
-  const result = await registerWebhooks({
-    session,
+  const shop = session.shop;
+
+  // Load OFFLINE session for this shop
+  const offlineSessionId = `offline_${shop}`;
+  const offlineSession = await sessionStorage.loadSession(offlineSessionId);
+
+  if (!offlineSession?.accessToken) {
+    throw new Error(
+      `Missing offline session/token for ${shop}. Uninstall + reinstall the app (and clear old sessions) to regenerate it.`
+    );
+  }
+
+  // Register webhooks using the SAME shopify instance from shopify.server.js
+  return registerWebhooks({
+    session: offlineSession,
     webhooks: {
-      // GDPR mandatory topics
-      CUSTOMERS_DATA_REQUEST: {
-        deliveryMethod: DeliveryMethod.Http,
-        callbackUrl: "/webhooks/customers/data_request",
-      },
-      CUSTOMERS_REDACT: {
-        deliveryMethod: DeliveryMethod.Http,
-        callbackUrl: "/webhooks/customers/redact",
-      },
-      SHOP_REDACT: {
-        deliveryMethod: DeliveryMethod.Http,
-        callbackUrl: "/webhooks/shop/redact",
-      },
-
-      // Your order webhooks (if you need them)
+      // ---- Orders ----
       ORDERS_CREATE: {
         deliveryMethod: DeliveryMethod.Http,
         callbackUrl: "/webhooks/orders/create",
@@ -46,7 +50,21 @@ export async function registerMandatoryWebhooks(session) {
         callbackUrl: "/webhooks/orders/updated",
       },
 
-      // App lifecycle (optional but recommended)
+      // ---- GDPR Mandatory ----
+      CUSTOMERS_DATA_REQUEST: {
+        deliveryMethod: DeliveryMethod.Http,
+        callbackUrl: "/webhooks/customers/data_request",
+      },
+      CUSTOMERS_REDACT: {
+        deliveryMethod: DeliveryMethod.Http,
+        callbackUrl: "/webhooks/customers/redact",
+      },
+      SHOP_REDACT: {
+        deliveryMethod: DeliveryMethod.Http,
+        callbackUrl: "/webhooks/shop/redact",
+      },
+
+      // ---- App Lifecycle ----
       APP_UNINSTALLED: {
         deliveryMethod: DeliveryMethod.Http,
         callbackUrl: "/webhooks/app/uninstalled",
@@ -57,8 +75,6 @@ export async function registerMandatoryWebhooks(session) {
       },
     },
   });
-
-  return { success: true, details: result };
 }
 
 export default registerMandatoryWebhooks;
