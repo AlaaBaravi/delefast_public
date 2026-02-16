@@ -1,62 +1,55 @@
-// File: webhooks.shop.redact.jsx
+// File: app/routes/webhooks.shop.redact.jsx
 
-import { verifyShopifyWebhook } from "../webhooks.verify.server";
+import { verifyShopifyWebhookFromRaw } from "../webhooks.verify.server";
 
 /**
- * Background worker to delete/anonymize shop data for GDPR compliance.
- * Replace the placeholder logic with your DB and third-party deletion steps.
+ * Delete/anonymize shop data for GDPR compliance.
+ * Replace placeholder logic with your DB and third-party deletion steps.
  */
 async function handleShopRedact(payload) {
   try {
-    // Example payload fields: { shop_domain, shop, ... }
     const shop = payload.shop_domain || payload.shop;
     console.log(`[GDPR] shop/redact received for shop=${shop}`);
 
-    // TODO: Implement actual deletion/anonymization:
-    // - Remove or anonymize merchant/shop records in your DB (settings, tokens, stored data)
-    // - Remove or anonymize copies in third-party services (analytics, backups)
-    // - Revoke API tokens and clear persistent sessions
-    // - Record an audit entry: { shop, timestamp, actionsTaken }
-    //
-    // Example pseudo-steps:
-    // await db.shops.delete({ domain: shop });
-    // await thirdPartyService.removeShopData(shop);
-    // await auditLog.create({ shop, action: 'shop_redact', status: 'completed' });
+    // TODO: Implement deletion/anonymization here
 
     console.log(`[GDPR] Completed deletion/anonymization for shop ${shop}`);
   } catch (err) {
     console.error("Error processing shop/redact webhook:", err);
-    // Log failure for manual review and retry if necessary
   }
 }
 
 export const action = async ({ request }) => {
   try {
-    // Read raw body from a clone so we can parse it after verification.
-    const rawBody = await request.clone().text();
+    // ✅ Read raw body ONCE
+    const rawBody = await request.text();
 
-    // Verify HMAC using the original request
-    const verification = await verifyShopifyWebhook(request);
+    // ✅ Verify using raw body + headers (no need to re-read request body)
+    const verification = await verifyShopifyWebhookFromRaw({
+      rawBody,
+      hmac: request.headers.get("X-Shopify-Hmac-Sha256"),
+      topic: request.headers.get("X-Shopify-Topic"),
+      shop: request.headers.get("X-Shopify-Shop-Domain"),
+    });
+
     if (!verification.ok) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Acknowledge immediately to Shopify
-    const response = new Response("OK", { status: 200 });
+    // ✅ Process (can be sync; Shopify just needs 200 quickly)
+    let payload = {};
+    try {
+      payload = rawBody ? JSON.parse(rawBody) : {};
+    } catch (err) {
+      console.error("Failed to parse shop/redact payload:", err);
+    }
 
-    // Process deletion asynchronously
-    setImmediate(() => {
-      try {
-        const payload = rawBody ? JSON.parse(rawBody) : {};
-        handleShopRedact(payload);
-      } catch (err) {
-        console.error("Failed to parse shop/redact payload:", err);
-      }
-    });
+    await handleShopRedact(payload);
 
-    return response;
+    return new Response("OK", { status: 200 });
   } catch (error) {
-    console.error("Webhook verification or handling failed:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    console.error("Webhook handling failed:", error);
+    // Return 200 if you don't want retries; 500 if you want Shopify to retry.
+    return new Response("OK", { status: 200 });
   }
 };
