@@ -3,7 +3,10 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
-  return new Response(null, { status: 204 });
+
+  return null;
 };
 
-export const headers = (headersArgs) => boundary.headers(headersArgs);
+export const headers = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
