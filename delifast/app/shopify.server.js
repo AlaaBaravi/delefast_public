@@ -18,20 +18,35 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
 
   /* REQUIRED FOR SHOPIFY APP STORE */
-  webhooks: {
-    CUSTOMERS_DATA_REQUEST: {
-      deliveryMethod: "http",
-      callbackUrl: "/webhooks/customers/data_request",
-    },
-    CUSTOMERS_REDACT: {
-      deliveryMethod: "http",
-      callbackUrl: "/webhooks/customers/redact",
-    },
-    SHOP_REDACT: {
-      deliveryMethod: "http",
-      callbackUrl: "/webhooks/shop/redact",
-    },
+ webhooks: {
+  CUSTOMERS_DATA_REQUEST: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/customers/data_request",
   },
+  CUSTOMERS_REDACT: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/customers/redact",
+  },
+  SHOP_REDACT: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/shop/redact",
+  },
+
+  ORDERS_CREATE: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/orders/create",
+  },
+
+  ORDERS_PAID: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/orders/paid",
+  },
+
+  ORDERS_UPDATED: {
+    deliveryMethod: "http",
+    callbackUrl: "/webhooks/orders/updated",
+  },
+},
 
   future: {
     expiringOfflineAccessTokens: true,
