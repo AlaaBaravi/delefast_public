@@ -1,28 +1,24 @@
-import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import { Page, Card, DataTable } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
-import db from "../db.server";
-
-export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
-
-  const shipments = await db.shipment.findMany({
-    where: { shop: session.shop },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return json({ shipments });
-};
 
 export default function OrdersPage() {
-  const { shipments } = useLoaderData();
+  const [orders, setOrders] = useState([]);
 
-  const rows = shipments.map((s) => [
-    s.shopifyOrderNumber,
-    s.shipmentId,
-    s.status,
-    new Date(s.sentAt).toLocaleString(),
+  useEffect(() => {
+    async function loadOrders() {
+      const res = await fetch("/app/orders.data");
+      const data = await res.json();
+      setOrders(data.shipments || []);
+    }
+
+    loadOrders();
+  }, []);
+
+  const rows = orders.map((o) => [
+    o.shopifyOrderNumber,
+    o.shipmentId,
+    o.status,
+    new Date(o.sentAt).toLocaleString(),
   ]);
 
   return (
