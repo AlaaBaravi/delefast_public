@@ -1,11 +1,24 @@
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
 export const action = async ({ request }) => {
   try {
     const { topic, shop, payload } = await authenticate.webhook(request);
 
     console.log(`Order paid in ${shop}`);
-    console.log(payload);
+
+    const order = payload;
+
+    await db.order.updateMany({
+      where: {
+        shopifyOrderId: order.id.toString(),
+      },
+      data: {
+        status: "paid",
+      },
+    });
+
+    console.log("Order marked as paid");
 
     return new Response("OK", { status: 200 });
 
