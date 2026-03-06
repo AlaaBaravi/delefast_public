@@ -1,18 +1,30 @@
+/**
+ * Webhook Handler: orders/create
+ * Triggered when a new order is created in Shopify
+ */
+
 import { authenticate } from "../shopify.server";
 import { handleOrderCreated } from "../services/orderHandler.server";
+import { logger } from "../services/logger.server";
 
-export async function action({ request }) {
+export const action = async ({ request }) => {
+  const { shop, topic, payload, admin } = await authenticate.webhook(request);
+
+  logger.info(`Received ${topic} webhook`, {
+    orderId: payload.id,
+    orderNumber: payload.name,
+  }, shop);
+
   try {
-    const { shop, admin, payload } = await authenticate.webhook(request);
-
-    const order = typeof payload === "string" ? JSON.parse(payload) : payload;
-
-    await handleOrderCreated(shop, order, admin);
-
-    return new Response("OK", { status: 200 });
-  } catch (err) {
-    console.error("orders/create webhook error:", err);
-    // Shopify will retry if not 200
-    return new Response("Unauthorized", { status: 401 });
+    // Process the order asynchronously
+    await handleOrderCreated(shop, payload, admin);
+  } catch (error) {
+    logger.error(`Error processing ${topic} webhook`, {
+      error: error.message,
+      orderId: payload.id,
+    }, shop);
   }
-}
+
+  // Always return 200 to acknowledge receipt
+  return new Response();
+};

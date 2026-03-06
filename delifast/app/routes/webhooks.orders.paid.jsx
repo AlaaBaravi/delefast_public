@@ -1,17 +1,31 @@
+/**
+ * Webhook Handler: orders/paid
+ * Triggered when an order is marked as paid in Shopify
+ */
+
 import { authenticate } from "../shopify.server";
 import { handleOrderPaid } from "../services/orderHandler.server";
+import { logger } from "../services/logger.server";
 
-export async function action({ request }) {
+export const action = async ({ request }) => {
+  const { shop, topic, payload, admin } = await authenticate.webhook(request);
+
+  logger.info(`Received ${topic} webhook`, {
+    orderId: payload.id,
+    orderNumber: payload.name,
+    financialStatus: payload.financial_status,
+  }, shop);
+
   try {
-    const { shop, admin, payload } = await authenticate.webhook(request);
-
-    const order = typeof payload === "string" ? JSON.parse(payload) : payload;
-
-    await handleOrderPaid(shop, order, admin);
-
-    return new Response("OK", { status: 200 });
-  } catch (err) {
-    console.error("orders/paid webhook error:", err);
-    return new Response("Unauthorized", { status: 401 });
+    // Process the order asynchronously
+    await handleOrderPaid(shop, payload, admin);
+  } catch (error) {
+    logger.error(`Error processing ${topic} webhook`, {
+      error: error.message,
+      orderId: payload.id,
+    }, shop);
   }
-}
+
+  // Always return 200 to acknowledge receipt
+  return new Response();
+};
