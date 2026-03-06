@@ -45,10 +45,10 @@ const shopify = shopifyApp({
     callbackUrl: "/webhooks/orders/paid",
   },
 
-  ORDERS_UPDATED: {
-    deliveryMethod: "http",
-    callbackUrl: "/webhooks/orders/updated",
-  },
+ORDERS_UPDATE: {
+  deliveryMethod: "http",
+  callbackUrl: "/webhooks/orders/updated",
+},
    APP_UNINSTALLED: {
   deliveryMethod: "http",
   callbackUrl: "/webhooks/app/uninstalled",
