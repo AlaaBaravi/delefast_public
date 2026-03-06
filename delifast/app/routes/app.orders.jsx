@@ -1,30 +1,39 @@
+import { json } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
+import { Page, Card, DataTable } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
-export const action = async ({ request }) => {
-  try {
-    const { shop, payload } = await authenticate.webhook(request);
+export const loader = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
 
-    const order = payload;
+  const shipments = await db.shipment.findMany({
+    where: { shop: session.shop },
+    orderBy: { createdAt: "desc" },
+  });
 
-    await db.shipment.create({
-      data: {
-        shop: shop,
-        shopifyOrderId: order.id.toString(),
-        shopifyOrderNumber: order.order_number.toString(),
-        shipmentId: `TEMP-${order.id}`, // temporary id
-        status: "new",
-        isTemporaryId: true,
-        sentAt: new Date(),
-      },
-    });
-
-    console.log("Shipment created from Shopify order");
-
-    return new Response("OK", { status: 200 });
-
-  } catch (error) {
-    console.error("WEBHOOK orders/create failed:", error);
-    return new Response("Unauthorized", { status: 401 });
-  }
+  return json({ shipments });
 };
+
+export default function OrdersPage() {
+  const { shipments } = useLoaderData();
+
+  const rows = shipments.map((s) => [
+    s.shopifyOrderNumber,
+    s.shipmentId,
+    s.status,
+    new Date(s.sentAt).toLocaleString(),
+  ]);
+
+  return (
+    <Page title="Orders">
+      <Card>
+        <DataTable
+          columnContentTypes={["text", "text", "text", "text"]}
+          headings={["Order", "Shipment ID", "Status", "Sent At"]}
+          rows={rows}
+        />
+      </Card>
+    </Page>
+  );
+}
