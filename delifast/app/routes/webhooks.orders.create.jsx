@@ -1,27 +1,13 @@
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+import { handleOrderCreated } from "../services/orderHandler.server";
 
 export const action = async ({ request }) => {
   try {
-    const { shop, payload } = await authenticate.webhook(request);
+    const { topic, shop, payload, admin } = await authenticate.webhook(request);
 
-    const order = payload;
+    console.log(`Order created webhook received from ${shop}`);
 
-    console.log(`Creating shipment for order ${order.order_number}`);
-
-    await db.shipment.create({
-      data: {
-        shop: shop,
-        shopifyOrderId: order.id.toString(),
-        shopifyOrderNumber: order.order_number.toString(),
-        shipmentId: `TEMP-${order.id}`,
-        status: "new",
-        isTemporaryId: true,
-        sentAt: new Date(),
-      },
-    });
-
-    console.log("Shipment saved to database");
+    await handleOrderCreated(shop, payload, admin);
 
     return new Response("OK", { status: 200 });
 
