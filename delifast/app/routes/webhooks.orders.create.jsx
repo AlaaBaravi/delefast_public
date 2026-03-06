@@ -3,24 +3,25 @@ import db from "../db.server";
 
 export const action = async ({ request }) => {
   try {
-    const { topic, shop, payload } = await authenticate.webhook(request);
-
-    console.log(`Order created in ${shop}`);
+    const { shop, payload } = await authenticate.webhook(request);
 
     const order = payload;
 
-    await db.order.create({
+    console.log(`Creating shipment for order ${order.order_number}`);
+
+    await db.shipment.create({
       data: {
         shop: shop,
         shopifyOrderId: order.id.toString(),
-        orderNumber: order.order_number.toString(),
-        email: order.email || "",
-        totalPrice: order.total_price || "0",
-        status: "new"
-      }
+        shopifyOrderNumber: order.order_number.toString(),
+        shipmentId: `TEMP-${order.id}`,
+        status: "new",
+        isTemporaryId: true,
+        sentAt: new Date(),
+      },
     });
 
-    console.log("Order saved to database");
+    console.log("Shipment saved to database");
 
     return new Response("OK", { status: 200 });
 
