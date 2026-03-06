@@ -10,7 +10,6 @@ import prisma from "./db.server";
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey:
-    process.env.SHOPIFY_API_SECRET ||
     process.env.SHOPIFY_API_SECRET_KEY,
   apiVersion: ApiVersion.October25,
   scopes: process.env.SCOPES?.split(","),
