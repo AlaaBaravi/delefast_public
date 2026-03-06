@@ -46,6 +46,10 @@ const shopify = shopifyApp({
     deliveryMethod: "http",
     callbackUrl: "/webhooks/orders/updated",
   },
+   APP_UNINSTALLED: {
+  deliveryMethod: "http",
+  callbackUrl: "/webhooks/app/uninstalled",
+},
 },
 
   future: {
