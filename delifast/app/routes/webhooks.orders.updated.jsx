@@ -1,11 +1,25 @@
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
 export const action = async ({ request }) => {
   try {
     const { topic, shop, payload } = await authenticate.webhook(request);
 
     console.log(`Order updated in ${shop}`);
-    console.log(payload);
+
+    const order = payload;
+
+    await db.order.updateMany({
+      where: {
+        shopifyOrderId: order.id.toString(),
+      },
+      data: {
+        email: order.email || "",
+        totalPrice: order.total_price || "0",
+      },
+    });
+
+    console.log("Order updated in database");
 
     return new Response("OK", { status: 200 });
 
