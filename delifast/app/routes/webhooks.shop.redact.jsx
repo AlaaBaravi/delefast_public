@@ -11,6 +11,7 @@ export const action = async ({ request }) => {
 
   } catch (error) {
     console.error("WEBHOOK shop/redact failed:", error);
-    return new Response("Unauthorized", { status: 401 });
+
+    return new Response("OK", { status: 200 });
   }
 };
