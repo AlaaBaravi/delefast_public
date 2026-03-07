@@ -1,7 +1,17 @@
-import { authenticate, registerWebhooks } from "../shopify.server";
+import { registerWebhooks, sessionStorage } from "../shopify.server";
 
-export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+export const loader = async () => {
+
+  const sessions = await sessionStorage.findSessionsByShop(
+    "delifast-dev.myshopify.com"
+  );
+
+  if (!sessions.length) {
+    console.log("NO SESSION FOUND");
+    return new Response("no session");
+  }
+
+  const session = sessions[0];
 
   await registerWebhooks({ session });
 
