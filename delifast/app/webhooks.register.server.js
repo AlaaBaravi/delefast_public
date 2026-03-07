@@ -1,39 +1,36 @@
-import { shopify } from "./shopify.server";
+import shopify from "./shopify.server";
 
 /*
-These are the mandatory Shopify compliance webhooks required
-for Shopify App Store submission.
+  Mandatory Shopify App Store compliance webhooks
 */
+
 const mandatoryTopics = [
   "CUSTOMERS_DATA_REQUEST",
   "CUSTOMERS_REDACT",
   "SHOP_REDACT",
 ];
 
+/*
+  Register all webhooks defined in shopify.server.js
+*/
+
 export async function registerMandatoryWebhooks(session) {
   try {
 
-    // Register all webhooks defined in shopify.server.js
-    await shopify.registerWebhooks({ session });
+    // Register webhooks defined in shopify.server.js
+    const responses = await shopify.registerWebhooks({ session });
 
-    // Ensure mandatory compliance webhooks are registered
-    for (const topic of mandatoryTopics) {
-      const response = await shopify.webhooks.register({
-        session,
-        topic,
-        path: `/webhooks/${topic.toLowerCase()}`,
-      });
-
-      if (!response.success) {
-        console.error(`[WEBHOOK] Failed to register ${topic}`, response);
+    for (const topic in responses) {
+      if (!responses[topic].success) {
+        console.error(`[WEBHOOK] Failed to register ${topic}`, responses[topic]);
       } else {
         console.log(`[WEBHOOK] Registered ${topic}`);
       }
     }
 
-    console.log(`[WEBHOOKS] All webhooks registered for ${session.shop}`);
+    console.log(`[WEBHOOKS] Webhooks registered for ${session.shop}`);
 
-  } catch (err) {
-    console.error("[WEBHOOKS] Registration failed:", err);
+  } catch (error) {
+    console.error("[WEBHOOKS] Registration failed:", error);
   }
 }
