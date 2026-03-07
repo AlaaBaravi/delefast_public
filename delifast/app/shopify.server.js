@@ -3,38 +3,49 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
-  shopifyApp,
   DeliveryMethod,
+  shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
 /*
-  Shopify App Configuration
+  Shopify App Initialization
 */
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET_KEY,
+
   apiVersion: ApiVersion.October25,
+
   scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL || "",
+
+  appUrl: process.env.SHOPIFY_APP_URL,
+
   authPathPrefix: "/auth",
+
   sessionStorage: new PrismaSessionStorage(prisma),
+
   distribution: AppDistribution.Custom,
+
   isEmbeddedApp: true,
 
   /*
-    Automatically register webhooks after the app installs
+    Register webhooks automatically after install
   */
   hooks: {
     afterAuth: async ({ session }) => {
       try {
-        await shopify.registerWebhooks({ session });
-        console.log("✅ Webhooks registered successfully");
+        console.log(`Registering webhooks for ${session.shop}`);
+
+        const response = await shopify.registerWebhooks({ session });
+
+        console.log("Webhook registration result:", response);
+
       } catch (error) {
-        console.error("❌ Webhook registration failed", error);
+        console.error("Webhook registration failed:", error);
       }
     },
   },
@@ -79,28 +90,38 @@ const shopify = shopifyApp({
     },
   },
 
+  /*
+    Future Shopify features
+  */
   future: {
     expiringOfflineAccessTokens: true,
   },
 
+  /*
+    Optional custom domains
+  */
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
 });
 
 /*
-  Export Shopify helpers
+  Export helpers
 */
 
 export default shopify;
+
 export const apiVersion = ApiVersion.October25;
 
 export const addDocumentResponseHeaders =
   shopify.addDocumentResponseHeaders;
 
 export const authenticate = shopify.authenticate;
+
 export const unauthenticated = shopify.unauthenticated;
+
 export const login = shopify.login;
 
 export const registerWebhooks = shopify.registerWebhooks;
+
 export const sessionStorage = shopify.sessionStorage;
