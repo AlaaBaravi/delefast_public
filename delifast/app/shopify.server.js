@@ -63,7 +63,48 @@ ORDERS_UPDATE: {
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
 });
+export async function forceRegisterWebhooks(session) {
+  const client = new shopify.api.clients.Rest({
+    session,
+  });
 
+  const baseUrl = process.env.SHOPIFY_APP_URL;
+
+  await client.post({
+    path: "webhooks",
+    data: {
+      webhook: {
+        topic: "orders/create",
+        address: `${baseUrl}/webhooks/orders/create`,
+        format: "json",
+      },
+    },
+  });
+
+  await client.post({
+    path: "webhooks",
+    data: {
+      webhook: {
+        topic: "orders/paid",
+        address: `${baseUrl}/webhooks/orders/paid`,
+        format: "json",
+      },
+    },
+  });
+
+  await client.post({
+    path: "webhooks",
+    data: {
+      webhook: {
+        topic: "orders/updated",
+        address: `${baseUrl}/webhooks/orders/updated`,
+        format: "json",
+      },
+    },
+  });
+
+  console.log("Webhooks registered manually");
+}
 export default shopify;
 export const apiVersion = ApiVersion.October25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
