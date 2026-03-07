@@ -1,11 +1,11 @@
-import { authenticate, registerWebhooks } from "../shopify.server";
+import { authenticate, forceRegisterWebhooks } from "../shopify.server";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
 
-  await registerWebhooks({ session });
+  await forceRegisterWebhooks(session);
 
-  console.log(`Webhooks registered for ${session.shop}`);
+  console.log("Webhooks forced registration complete");
 
   return null;
 };
