@@ -28,7 +28,7 @@ const shopify = shopifyApp({
 
   sessionStorage: new PrismaSessionStorage(prisma),
 
-  distribution: AppDistribution.Custom,
+distribution: AppDistribution.Public,
 
   isEmbeddedApp: true,
 
