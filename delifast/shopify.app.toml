@@ -33,7 +33,7 @@ uri = "/webhooks/orders/paid"
 
 [[webhooks.subscriptions]]
 topics = ["orders/updated"]
-uri = "/webhooks/orders/update"
+uri = "/webhooks/orders/updated"
 
 [access_scopes]
 scopes = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,write_metafields,read_metafields"
