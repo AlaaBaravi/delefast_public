@@ -13,6 +13,15 @@ include_config_on_deploy = true
 [webhooks]
 api_version = "2025-10"
 
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+
+uri = "/webhooks"
+
 # App lifecycle webhooks
 [[webhooks.subscriptions]]
 topics = ["app/uninstalled"]
