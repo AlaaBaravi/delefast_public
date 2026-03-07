@@ -1,7 +1,8 @@
 import shopify from "./shopify.server";
 
 /*
-  Mandatory Shopify App Store compliance webhooks
+  Shopify mandatory compliance webhooks
+  Required for Shopify App Store approval
 */
 
 const mandatoryTopics = [
@@ -16,20 +17,22 @@ const mandatoryTopics = [
 
 export async function registerMandatoryWebhooks(session) {
   try {
+    console.log(`[WEBHOOKS] Registering webhooks for ${session.shop}`);
 
-    // Register webhooks defined in shopify.server.js
     const responses = await shopify.registerWebhooks({ session });
 
-    for (const topic in responses) {
-      if (!responses[topic].success) {
-        console.error(`[WEBHOOK] Failed to register ${topic}`, responses[topic]);
+    Object.entries(responses).forEach(([topic, response]) => {
+      if (!response.success) {
+        console.error(
+          `[WEBHOOK ERROR] Failed to register ${topic}`,
+          response
+        );
       } else {
-        console.log(`[WEBHOOK] Registered ${topic}`);
+        console.log(`[WEBHOOK SUCCESS] ${topic} registered`);
       }
-    }
+    });
 
-    console.log(`[WEBHOOKS] Webhooks registered for ${session.shop}`);
-
+    console.log(`[WEBHOOKS] Registration completed for ${session.shop}`);
   } catch (error) {
     console.error("[WEBHOOKS] Registration failed:", error);
   }
