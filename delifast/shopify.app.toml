@@ -1,8 +1,8 @@
 # Delifast Shopify App Configuration
 # https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "49216002eaf8bc5c29a65a0a9d515deb"
-name = "delifast"
+client_id = "af955fe755967af3f8bc9a39e13ad1d5"
+name = "Delifast Public"
 application_url = "https://delifast-public.onrender.com"
 embedded = true
 
