@@ -4,13 +4,16 @@ export const action = async ({ request }) => {
   try {
     const { topic, shop, payload } = await authenticate.webhook(request);
 
-    console.log(`Compliance webhook received: ${topic} from ${shop}`);
+    console.log("Webhook received");
+    console.log("Topic:", topic);
+    console.log("Shop:", shop);
     console.log("Payload:", payload);
 
     return new Response("OK", { status: 200 });
 
   } catch (error) {
-    console.error("Webhook error:", error);
-    return new Response("Error", { status: 500 });
+    console.error("Webhook verification failed:", error);
+
+    return new Response("Unauthorized", { status: 401 });
   }
 };
