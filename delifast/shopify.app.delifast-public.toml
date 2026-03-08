@@ -9,13 +9,16 @@ embedded = true
 api_version = "2025-10"
 
 [[webhooks.subscriptions]]
-compliance_topics = [
-  "customers/data_request",
-  "customers/redact",
-  "shop/redact"
-]
+topics = ["customers/data_request"]
+uri = "https://delifast-public.onrender.com/webhooks/customers/data_request"
 
-uri = "https://delifast-public.onrender.com/webhooks"
+[[webhooks.subscriptions]]
+topics = ["customers/redact"]
+uri = "https://delifast-public.onrender.com/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+topics = ["shop/redact"]
+uri = "https://delifast-public.onrender.com/webhooks/shop/redact"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
