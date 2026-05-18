@@ -1,14 +1,73 @@
 /**
  * Settings Page
  * Configure Delifast credentials, sender info, and shipping defaults
+ *
+ * FIX: <s-select> is a Shadow DOM web component — it cannot pick up
+ * regular <option> children from the light DOM.
+ * Solution: use useRef + useEffect to set the `.options` JS property
+ * directly on the element after it mounts.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { getAvailableCities } from "../utils/cityMapping";
 
-// ✅ SERVER-ONLY: keep it INSIDE loader/action (no top-level server imports)
+// ─────────────────────────────────────────────────────────────────────────────
+// SelectField — wraps <s-select> and sets options via JS property (not children)
+// ─────────────────────────────────────────────────────────────────────────────
+function SelectField({ label, value, onChange, options, helpText, disabled }) {
+  const ref = useRef(null);
+
+  // Set the options array as a JS property on the web component.
+  // This must be done via ref because React 18 serialises non-string
+  // JSX props to strings for custom elements, which breaks array values.
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.options = options;
+    }
+  }, [options]);
+
+  // Keep the selected value in sync when formData changes
+  useEffect(() => {
+    if (ref.current && value !== undefined && value !== null) {
+      ref.current.value = String(value);
+    }
+  }, [value]);
+
+  return (
+    <s-select
+      ref={ref}
+      label={label}
+      helpText={helpText || ""}
+      disabled={disabled || false}
+      onChange={onChange}
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Static option lists
+// ─────────────────────────────────────────────────────────────────────────────
+const MODE_OPTIONS = [
+  { label: "Manual — Send orders manually", value: "manual" },
+  { label: "Auto — Send orders automatically", value: "auto" },
+];
+
+const AUTO_SEND_OPTIONS = [
+  { label: "When order is created", value: "created" },
+  { label: "When order is paid", value: "paid" },
+  { label: "When order is fulfilled", value: "fulfilled" },
+];
+
+const PAYMENT_OPTIONS = [
+  { label: "COD — Cash on Delivery", value: "0" },
+  { label: "Prepaid", value: "1" },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVER LOADER
+// ─────────────────────────────────────────────────────────────────────────────
 export const loader = async ({ request }) => {
   const { authenticate } = await import("../shopify.server");
   const prisma = (await import("../db.server")).default;
@@ -16,18 +75,12 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Get or create store settings
-  let settings = await prisma.storeSettings.findUnique({
-    where: { shop },
-  });
+  let settings = await prisma.storeSettings.findUnique({ where: { shop } });
 
   if (!settings) {
-    settings = await prisma.storeSettings.create({
-      data: { shop },
-    });
+    settings = await prisma.storeSettings.create({ data: { shop } });
   }
 
-  // Don't send password to client, just indicate if it's set
   const hasPassword = !!settings.delifastPassword;
 
   return {
@@ -40,11 +93,12 @@ export const loader = async ({ request }) => {
   };
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVER ACTION
+// ─────────────────────────────────────────────────────────────────────────────
 export const action = async ({ request }) => {
   const { authenticate } = await import("../shopify.server");
   const prisma = (await import("../db.server")).default;
-
-  // these are server-only modules
   const { encrypt } = await import("../services/encryption.server");
   const { testConnection } = await import("../services/delifastClient.server");
 
@@ -63,14 +117,12 @@ export const action = async ({ request }) => {
     }
   }
 
-  // Update settings
   const tab = formData.get("tab");
   const updates = {};
 
   if (tab === "general" || !tab) {
     updates.delifastUsername = formData.get("delifastUsername") || null;
 
-    // Only update password if changed (not the placeholder)
     const newPassword = formData.get("delifastPassword");
     if (newPassword && newPassword !== "********") {
       updates.delifastPassword = encrypt(newPassword);
@@ -98,29 +150,25 @@ export const action = async ({ request }) => {
     updates.defaultWeight = formData.get("defaultWeight")
       ? parseFloat(formData.get("defaultWeight"))
       : 1.0;
-
     updates.defaultDimensions = formData.get("defaultDimensions") || "10x10x10";
-
     updates.defaultCityId = formData.get("defaultCityId")
       ? parseInt(formData.get("defaultCityId"), 10)
       : 5;
-
     updates.paymentMethodId = formData.get("paymentMethodId")
       ? parseInt(formData.get("paymentMethodId"), 10)
       : 0;
-
     updates.feesOnSender = formData.get("feesOnSender") === "true";
     updates.feesPaid = formData.get("feesPaid") === "true";
   }
 
-  await prisma.storeSettings.update({
-    where: { shop },
-    data: updates,
-  });
+  await prisma.storeSettings.update({ where: { shop }, data: updates });
 
   return { success: true, message: "Settings saved successfully!" };
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENT COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Settings() {
   const { settings, cities } = useLoaderData();
   const fetcher = useFetcher();
@@ -131,6 +179,12 @@ export default function Settings() {
 
   const isLoading = fetcher.state !== "idle";
   const actionData = fetcher.data;
+
+  // Build city options list once from loader data
+  const cityOptions = [
+    { label: "Select a city", value: "" },
+    ...cities.map((c) => ({ label: c.name, value: String(c.id) })),
+  ];
 
   useEffect(() => {
     if (actionData?.success) {
@@ -147,13 +201,11 @@ export default function Settings() {
   const handleSubmit = (tab) => {
     const form = new FormData();
     form.set("tab", tab);
-
     Object.entries(formData).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
         form.set(key, String(value));
       }
     });
-
     fetcher.submit(form, { method: "POST" });
   };
 
@@ -173,65 +225,54 @@ export default function Settings() {
         ))}
       </s-tabs>
 
+      {/* ── GENERAL TAB ─────────────────────────────────────────────────── */}
       {activeTab === 0 && (
         <s-section heading="General Settings">
           <s-stack direction="block" gap="base">
+
             <s-text-field
               label="Delifast Username"
               value={formData.delifastUsername || ""}
-              onChange={(e) =>
-                handleInputChange("delifastUsername", e.target.value)
-              }
+              onChange={(e) => handleInputChange("delifastUsername", e.target.value)}
               helpText="Your Delifast portal login username"
             />
+
             <s-text-field
               label="Delifast Password"
               type="password"
               value={formData.delifastPassword || ""}
-              onChange={(e) =>
-                handleInputChange("delifastPassword", e.target.value)
-              }
+              onChange={(e) => handleInputChange("delifastPassword", e.target.value)}
               helpText="Your Delifast portal password"
             />
+
             <s-text-field
               label="Customer ID"
               value={formData.delifastCustomerId || ""}
-              onChange={(e) =>
-                handleInputChange("delifastCustomerId", e.target.value)
-              }
+              onChange={(e) => handleInputChange("delifastCustomerId", e.target.value)}
               helpText="Auto-filled after successful login (optional)"
             />
 
             <s-divider />
 
-            <s-select
+            {/* ✅ FIXED: options passed via ref, not <option> children */}
+            <SelectField
               label="Mode"
               value={formData.mode || "manual"}
+              options={MODE_OPTIONS}
               onChange={(e) => handleInputChange("mode", e.target.value)}
-            >
-              <option value="manual">Manual - Send orders manually</option>
-              <option value="auto">Auto - Send orders automatically</option>
-            </s-select>
+            />
 
             {formData.mode === "auto" && (
-              <s-select
+              <SelectField
                 label="Auto-send Trigger"
                 value={formData.autoSendStatus || "paid"}
-                onChange={(e) =>
-                  handleInputChange("autoSendStatus", e.target.value)
-                }
-              >
-                <option value="created">When order is created</option>
-                <option value="paid">When order is paid</option>
-                <option value="fulfilled">When order is fulfilled</option>
-              </s-select>
+                options={AUTO_SEND_OPTIONS}
+                onChange={(e) => handleInputChange("autoSendStatus", e.target.value)}
+              />
             )}
 
             <s-stack direction="inline" gap="base">
-              <s-button
-                onClick={() => handleSubmit("general")}
-                loading={isLoading}
-              >
+              <s-button onClick={() => handleSubmit("general")} loading={isLoading}>
                 Save General Settings
               </s-button>
               <s-button
@@ -243,10 +284,12 @@ export default function Settings() {
                 Test Connection
               </s-button>
             </s-stack>
+
           </s-stack>
         </s-section>
       )}
 
+      {/* ── SENDER TAB ──────────────────────────────────────────────────── */}
       {activeTab === 1 && (
         <s-section heading="Sender Settings">
           <s-paragraph>
@@ -255,127 +298,116 @@ export default function Settings() {
           </s-paragraph>
 
           <s-stack direction="block" gap="base">
+
             <s-text-field
               label="Sender Number"
               value={formData.senderNo || ""}
               onChange={(e) => handleInputChange("senderNo", e.target.value)}
               helpText="Your Delifast sender/customer number"
             />
+
             <s-text-field
               label="Sender Name"
               value={formData.senderName || ""}
               onChange={(e) => handleInputChange("senderName", e.target.value)}
             />
+
             <s-text-field
               label="Sender Address"
               value={formData.senderAddress || ""}
-              onChange={(e) =>
-                handleInputChange("senderAddress", e.target.value)
-              }
+              onChange={(e) => handleInputChange("senderAddress", e.target.value)}
               multiline
             />
+
             <s-text-field
               label="Mobile Number"
               value={formData.senderMobile || ""}
               onChange={(e) => handleInputChange("senderMobile", e.target.value)}
             />
-            <s-select
+
+            {/* ✅ FIXED: city options via ref */}
+            <SelectField
               label="City"
-              value={formData.senderCityId || ""}
-              onChange={(e) =>
-                handleInputChange("senderCityId", e.target.value)
-              }
-            >
-              <option value="">Select a city</option>
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </s-select>
+              value={String(formData.senderCityId || "")}
+              options={cityOptions}
+              onChange={(e) => handleInputChange("senderCityId", e.target.value)}
+            />
+
             <s-text-field
               label="Area ID"
               value={formData.senderAreaId || ""}
-              onChange={(e) =>
-                handleInputChange("senderAreaId", e.target.value)
-              }
+              onChange={(e) => handleInputChange("senderAreaId", e.target.value)}
               helpText="Delifast area ID for your location"
             />
+
             <s-button onClick={() => handleSubmit("sender")} loading={isLoading}>
               Save Sender Settings
             </s-button>
+
           </s-stack>
         </s-section>
       )}
 
+      {/* ── SHIPPING TAB ────────────────────────────────────────────────── */}
       {activeTab === 2 && (
         <s-section heading="Shipping Settings">
           <s-stack direction="block" gap="base">
+
             <s-text-field
               label="Default Weight (kg)"
               type="number"
               step="0.1"
               value={formData.defaultWeight || 1.0}
-              onChange={(e) =>
-                handleInputChange("defaultWeight", e.target.value)
-              }
+              onChange={(e) => handleInputChange("defaultWeight", e.target.value)}
             />
+
             <s-text-field
               label="Default Dimensions"
               value={formData.defaultDimensions || "10x10x10"}
-              onChange={(e) =>
-                handleInputChange("defaultDimensions", e.target.value)
-              }
+              onChange={(e) => handleInputChange("defaultDimensions", e.target.value)}
               helpText="Format: LxWxH in cm (e.g., 10x10x10)"
             />
-            <s-select
+
+            {/* ✅ FIXED: city options via ref */}
+            <SelectField
               label="Default Destination City"
-              value={formData.defaultCityId || 5}
-              onChange={(e) =>
-                handleInputChange("defaultCityId", e.target.value)
-              }
+              value={String(formData.defaultCityId || "5")}
+              options={cityOptions.filter((o) => o.value !== "")}
               helpText="Used when customer city cannot be determined"
-            >
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </s-select>
-            <s-select
+              onChange={(e) => handleInputChange("defaultCityId", e.target.value)}
+            />
+
+            {/* ✅ FIXED: payment method options via ref */}
+            <SelectField
               label="Payment Method"
-              value={formData.paymentMethodId || 0}
-              onChange={(e) =>
-                handleInputChange("paymentMethodId", e.target.value)
-              }
-            >
-              <option value="0">COD - Cash on Delivery</option>
-              <option value="1">Prepaid</option>
-            </s-select>
+              value={String(formData.paymentMethodId ?? "0")}
+              options={PAYMENT_OPTIONS}
+              onChange={(e) => handleInputChange("paymentMethodId", e.target.value)}
+            />
+
             <s-checkbox
               checked={!!formData.feesOnSender}
-              onChange={(e) =>
-                handleInputChange("feesOnSender", e.target.checked)
-              }
+              onChange={(e) => handleInputChange("feesOnSender", e.target.checked)}
             >
               Shipping fees on sender (for prepaid orders)
             </s-checkbox>
+
             <s-checkbox
               checked={!!formData.feesPaid}
               onChange={(e) => handleInputChange("feesPaid", e.target.checked)}
             >
               Shipping fees already paid
             </s-checkbox>
-            <s-button
-              onClick={() => handleSubmit("shipping")}
-              loading={isLoading}
-            >
+
+            <s-button onClick={() => handleSubmit("shipping")} loading={isLoading}>
               Save Shipping Settings
             </s-button>
+
           </s-stack>
         </s-section>
       )}
 
+      {/* ── ASIDE: Connection Status ─────────────────────────────────────── */}
       <s-section slot="aside" heading="Connection Status">
         {settings.apiToken ? (
           <s-banner tone="success">
@@ -395,17 +427,12 @@ export default function Settings() {
         )}
       </s-section>
 
+      {/* ── ASIDE: Quick Links ──────────────────────────────────────────── */}
       <s-section slot="aside" heading="Quick Links">
         <s-unordered-list>
-          <s-list-item>
-            <s-link href="/app">Dashboard</s-link>
-          </s-list-item>
-          <s-list-item>
-            <s-link href="/app/orders">Orders</s-link>
-          </s-list-item>
-          <s-list-item>
-            <s-link href="/app/logs">Activity Logs</s-link>
-          </s-list-item>
+          <s-list-item><s-link href="/app">Dashboard</s-link></s-list-item>
+          <s-list-item><s-link href="/app/orders">Orders</s-link></s-list-item>
+          <s-list-item><s-link href="/app/logs">Activity Logs</s-link></s-list-item>
           <s-list-item>
             <s-link href="https://portal.delifast.ae" target="_blank">
               Delifast Portal
@@ -417,10 +444,7 @@ export default function Settings() {
   );
 }
 
-// ✅ avoid server import at top-level
 export const headers = async (headersArgs) => {
-  const { boundary } = await import(
-    "@shopify/shopify-app-react-router/server"
-  );
+  const { boundary } = await import("@shopify/shopify-app-react-router/server");
   return boundary.headers(headersArgs);
 };
