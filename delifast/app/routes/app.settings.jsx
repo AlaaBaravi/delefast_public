@@ -1,48 +1,89 @@
 /**
  * Settings Page
- * Configure Delifast credentials, sender info, and shipping defaults
- *
- * FIX: <s-select> is a Shadow DOM web component — it cannot pick up
- * regular <option> children from the light DOM.
- * Solution: use useRef + useEffect to set the `.options` JS property
- * directly on the element after it mounts.
+ * FIX: s-select web component does not expose an .options property
+ * in this version of @shopify/shopify-app-react-router.
+ * Solution: replace all <s-select> with native <select> elements
+ * styled to exactly match Polaris design tokens.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { getAvailableCities } from "../utils/cityMapping";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SelectField — wraps <s-select> and sets options via JS property (not children)
+// PolarisSelect — native <select> styled to match Shopify Polaris exactly
 // ─────────────────────────────────────────────────────────────────────────────
-function SelectField({ label, value, onChange, options, helpText, disabled }) {
-  const ref = useRef(null);
-
-  // Set the options array as a JS property on the web component.
-  // This must be done via ref because React 18 serialises non-string
-  // JSX props to strings for custom elements, which breaks array values.
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.options = options;
-    }
-  }, [options]);
-
-  // Keep the selected value in sync when formData changes
-  useEffect(() => {
-    if (ref.current && value !== undefined && value !== null) {
-      ref.current.value = String(value);
-    }
-  }, [value]);
+function PolarisSelect({ label, value, onChange, options, helpText, disabled }) {
+  const [focused, setFocused] = useState(false);
 
   return (
-    <s-select
-      ref={ref}
-      label={label}
-      helpText={helpText || ""}
-      disabled={disabled || false}
-      onChange={onChange}
-    />
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      {label && (
+        <label style={{
+          fontSize: "14px",
+          fontWeight: "500",
+          lineHeight: "20px",
+          color: "#202223",
+        }}>
+          {label}
+        </label>
+      )}
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <select
+          value={value ?? ""}
+          onChange={onChange}
+          disabled={disabled}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: "100%",
+            minHeight: "36px",
+            padding: "5px 32px 5px 12px",
+            fontSize: "14px",
+            lineHeight: "20px",
+            color: disabled ? "#8c9196" : "#202223",
+            backgroundColor: disabled ? "#fafbfb" : "#ffffff",
+            border: focused ? "2px solid #005bd3" : "1px solid #c9cccf",
+            borderRadius: "8px",
+            appearance: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            cursor: disabled ? "not-allowed" : "pointer",
+            outline: "none",
+            boxShadow: focused ? "0 0 0 3px rgba(0,91,211,0.2)" : "none",
+            transition: "border-color 0.15s, box-shadow 0.15s",
+          }}
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {/* Polaris chevron icon */}
+        <span style={{
+          position: "absolute",
+          right: "10px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+          color: "#8c9196",
+          display: "flex",
+        }}>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" clipRule="evenodd"
+              d="M5.72 7.47a.75.75 0 0 1 1.06 0L10 10.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.75.75 0 0 1-1.06 0L5.72 8.53a.75.75 0 0 1 0-1.06Z"
+            />
+          </svg>
+        </span>
+      </div>
+      {helpText && (
+        <p style={{ fontSize: "12px", lineHeight: "16px", color: "#6d7175", margin: 0 }}>
+          {helpText}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -76,13 +117,11 @@ export const loader = async ({ request }) => {
   const shop = session.shop;
 
   let settings = await prisma.storeSettings.findUnique({ where: { shop } });
-
   if (!settings) {
     settings = await prisma.storeSettings.create({ data: { shop } });
   }
 
   const hasPassword = !!settings.delifastPassword;
-
   return {
     settings: {
       ...settings,
@@ -122,47 +161,39 @@ export const action = async ({ request }) => {
 
   if (tab === "general" || !tab) {
     updates.delifastUsername = formData.get("delifastUsername") || null;
-
     const newPassword = formData.get("delifastPassword");
     if (newPassword && newPassword !== "********") {
       updates.delifastPassword = encrypt(newPassword);
     }
-
     updates.delifastCustomerId = formData.get("delifastCustomerId") || null;
-    updates.mode = formData.get("mode") || "manual";
+    updates.mode = formData.get("mode") || "auto";
     updates.autoSendStatus = formData.get("autoSendStatus") || "paid";
   }
 
   if (tab === "sender") {
-    updates.senderNo = formData.get("senderNo") || null;
-    updates.senderName = formData.get("senderName") || null;
+    updates.senderNo      = formData.get("senderNo")      || null;
+    updates.senderName    = formData.get("senderName")    || null;
     updates.senderAddress = formData.get("senderAddress") || null;
-    updates.senderMobile = formData.get("senderMobile") || null;
-    updates.senderCityId = formData.get("senderCityId")
-      ? parseInt(formData.get("senderCityId"), 10)
-      : null;
-    updates.senderAreaId = formData.get("senderAreaId")
-      ? parseInt(formData.get("senderAreaId"), 10)
-      : null;
+    updates.senderMobile  = formData.get("senderMobile")  || null;
+    updates.senderCityId  = formData.get("senderCityId")
+      ? parseInt(formData.get("senderCityId"), 10) : null;
+    updates.senderAreaId  = formData.get("senderAreaId")
+      ? parseInt(formData.get("senderAreaId"), 10) : null;
   }
 
   if (tab === "shipping") {
-    updates.defaultWeight = formData.get("defaultWeight")
-      ? parseFloat(formData.get("defaultWeight"))
-      : 1.0;
+    updates.defaultWeight     = formData.get("defaultWeight")
+      ? parseFloat(formData.get("defaultWeight")) : 1.0;
     updates.defaultDimensions = formData.get("defaultDimensions") || "10x10x10";
-    updates.defaultCityId = formData.get("defaultCityId")
-      ? parseInt(formData.get("defaultCityId"), 10)
-      : 5;
-    updates.paymentMethodId = formData.get("paymentMethodId")
-      ? parseInt(formData.get("paymentMethodId"), 10)
-      : 0;
-    updates.feesOnSender = formData.get("feesOnSender") === "true";
-    updates.feesPaid = formData.get("feesPaid") === "true";
+    updates.defaultCityId     = formData.get("defaultCityId")
+      ? parseInt(formData.get("defaultCityId"), 10) : 5;
+    updates.paymentMethodId   = formData.get("paymentMethodId")
+      ? parseInt(formData.get("paymentMethodId"), 10) : 0;
+    updates.feesOnSender      = formData.get("feesOnSender") === "true";
+    updates.feesPaid          = formData.get("feesPaid")     === "true";
   }
 
   await prisma.storeSettings.update({ where: { shop }, data: updates });
-
   return { success: true, message: "Settings saved successfully!" };
 };
 
@@ -171,20 +202,23 @@ export const action = async ({ request }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Settings() {
   const { settings, cities } = useLoaderData();
-  const fetcher = useFetcher();
-  const shopify = useAppBridge();
+  const fetcher  = useFetcher();
+  const shopify  = useAppBridge();
 
   const [activeTab, setActiveTab] = useState(0);
-  const [formData, setFormData] = useState(settings);
+  const [formData, setFormData]   = useState(settings);
 
-  const isLoading = fetcher.state !== "idle";
+  const isLoading  = fetcher.state !== "idle";
   const actionData = fetcher.data;
 
-  // Build city options list once from loader data
   const cityOptions = [
     { label: "Select a city", value: "" },
     ...cities.map((c) => ({ label: c.name, value: String(c.id) })),
   ];
+  const cityOptionsRequired = cities.map((c) => ({
+    label: c.name,
+    value: String(c.id),
+  }));
 
   useEffect(() => {
     if (actionData?.success) {
@@ -215,17 +249,16 @@ export default function Settings() {
     fetcher.submit(form, { method: "POST" });
   };
 
-  const tabs = ["General", "Sender", "Shipping"];
-
   return (
     <s-page heading="Delifast Settings">
+
       <s-tabs selected={activeTab} onSelect={(index) => setActiveTab(index)}>
-        {tabs.map((tab, index) => (
+        {["General", "Sender", "Shipping"].map((tab, index) => (
           <s-tab key={index}>{tab}</s-tab>
         ))}
       </s-tabs>
 
-      {/* ── GENERAL TAB ─────────────────────────────────────────────────── */}
+      {/* ── GENERAL ─────────────────────────────────────────────────────── */}
       {activeTab === 0 && (
         <s-section heading="General Settings">
           <s-stack direction="block" gap="base">
@@ -254,22 +287,26 @@ export default function Settings() {
 
             <s-divider />
 
-            {/* ✅ FIXED: options passed via ref, not <option> children */}
-            <SelectField
+            {/* ✅ FIXED: native <select> — works 100% */}
+            <PolarisSelect
               label="Mode"
-              value={formData.mode || "manual"}
+              value={formData.mode || "auto"}
               options={MODE_OPTIONS}
               onChange={(e) => handleInputChange("mode", e.target.value)}
             />
 
-            {formData.mode === "auto" && (
-              <SelectField
-                label="Auto-send Trigger"
-                value={formData.autoSendStatus || "paid"}
-                options={AUTO_SEND_OPTIONS}
-                onChange={(e) => handleInputChange("autoSendStatus", e.target.value)}
-              />
-            )}
+            <PolarisSelect
+              label="Auto-send Trigger"
+              value={formData.autoSendStatus || "paid"}
+              options={AUTO_SEND_OPTIONS}
+              disabled={formData.mode === "manual"}
+              helpText={
+                formData.mode === "manual"
+                  ? "Switch Mode to Auto to enable"
+                  : "When should orders be sent to Delifast?"
+              }
+              onChange={(e) => handleInputChange("autoSendStatus", e.target.value)}
+            />
 
             <s-stack direction="inline" gap="base">
               <s-button onClick={() => handleSubmit("general")} loading={isLoading}>
@@ -289,14 +326,13 @@ export default function Settings() {
         </s-section>
       )}
 
-      {/* ── SENDER TAB ──────────────────────────────────────────────────── */}
+      {/* ── SENDER ──────────────────────────────────────────────────────── */}
       {activeTab === 1 && (
         <s-section heading="Sender Settings">
           <s-paragraph>
             Sender information is automatically populated from your Delifast
             account after login. You can also manually configure it here.
           </s-paragraph>
-
           <s-stack direction="block" gap="base">
 
             <s-text-field
@@ -305,28 +341,25 @@ export default function Settings() {
               onChange={(e) => handleInputChange("senderNo", e.target.value)}
               helpText="Your Delifast sender/customer number"
             />
-
             <s-text-field
               label="Sender Name"
               value={formData.senderName || ""}
               onChange={(e) => handleInputChange("senderName", e.target.value)}
             />
-
             <s-text-field
               label="Sender Address"
               value={formData.senderAddress || ""}
               onChange={(e) => handleInputChange("senderAddress", e.target.value)}
               multiline
             />
-
             <s-text-field
               label="Mobile Number"
               value={formData.senderMobile || ""}
               onChange={(e) => handleInputChange("senderMobile", e.target.value)}
             />
 
-            {/* ✅ FIXED: city options via ref */}
-            <SelectField
+            {/* ✅ FIXED */}
+            <PolarisSelect
               label="City"
               value={String(formData.senderCityId || "")}
               options={cityOptions}
@@ -348,7 +381,7 @@ export default function Settings() {
         </s-section>
       )}
 
-      {/* ── SHIPPING TAB ────────────────────────────────────────────────── */}
+      {/* ── SHIPPING ────────────────────────────────────────────────────── */}
       {activeTab === 2 && (
         <s-section heading="Shipping Settings">
           <s-stack direction="block" gap="base">
@@ -360,7 +393,6 @@ export default function Settings() {
               value={formData.defaultWeight || 1.0}
               onChange={(e) => handleInputChange("defaultWeight", e.target.value)}
             />
-
             <s-text-field
               label="Default Dimensions"
               value={formData.defaultDimensions || "10x10x10"}
@@ -368,17 +400,16 @@ export default function Settings() {
               helpText="Format: LxWxH in cm (e.g., 10x10x10)"
             />
 
-            {/* ✅ FIXED: city options via ref */}
-            <SelectField
+            {/* ✅ FIXED */}
+            <PolarisSelect
               label="Default Destination City"
               value={String(formData.defaultCityId || "5")}
-              options={cityOptions.filter((o) => o.value !== "")}
+              options={cityOptionsRequired}
               helpText="Used when customer city cannot be determined"
               onChange={(e) => handleInputChange("defaultCityId", e.target.value)}
             />
 
-            {/* ✅ FIXED: payment method options via ref */}
-            <SelectField
+            <PolarisSelect
               label="Payment Method"
               value={String(formData.paymentMethodId ?? "0")}
               options={PAYMENT_OPTIONS}
@@ -391,7 +422,6 @@ export default function Settings() {
             >
               Shipping fees on sender (for prepaid orders)
             </s-checkbox>
-
             <s-checkbox
               checked={!!formData.feesPaid}
               onChange={(e) => handleInputChange("feesPaid", e.target.checked)}
@@ -420,14 +450,12 @@ export default function Settings() {
           </s-banner>
         ) : (
           <s-banner tone="warning">
-            <s-text>
-              Not connected. Please enter credentials and test connection.
-            </s-text>
+            <s-text>Not connected. Please enter credentials and test connection.</s-text>
           </s-banner>
         )}
       </s-section>
 
-      {/* ── ASIDE: Quick Links ──────────────────────────────────────────── */}
+      {/* ── ASIDE: Quick Links ───────────────────────────────────────────── */}
       <s-section slot="aside" heading="Quick Links">
         <s-unordered-list>
           <s-list-item><s-link href="/app">Dashboard</s-link></s-list-item>
@@ -440,6 +468,7 @@ export default function Settings() {
           </s-list-item>
         </s-unordered-list>
       </s-section>
+
     </s-page>
   );
 }
