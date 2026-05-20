@@ -1,18 +1,16 @@
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
 export const action = async ({ request }) => {
-  try {
-    const { topic, shop } = await authenticate.webhook(request);
+  const { shop, session, topic } = await authenticate.webhook(request);
 
-    console.log(`App uninstalled from ${shop}`);
+  console.log(`Received ${topic} webhook for ${shop}`);
 
-    // TODO: clean database if needed
-    // await prisma.session.deleteMany({ where: { shop } });
-
-  } catch (error) {
-    console.error("APP_UNINSTALLED webhook error:", error);
+  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
+  // If this webhook already ran, the session may have been deleted previously.
+  if (session) {
+    await db.session.deleteMany({ where: { shop } });
   }
 
-  // Always return 200 so Shopify doesn't retry
-  return new Response("OK", { status: 200 });
+  return new Response();
 };
