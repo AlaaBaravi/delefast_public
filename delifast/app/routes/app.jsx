@@ -4,7 +4,6 @@
  */
 
 import { Outlet, useLoaderData, useRouteError } from "react-router";
-import { useEffect } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
@@ -17,41 +16,6 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey } = useLoaderData();
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const pingSessionTokenEndpoint = async () => {
-      try {
-        if (typeof window === "undefined" || !window.shopify?.idToken) {
-          return;
-        }
-
-        const token = await window.shopify.idToken();
-
-        if (cancelled || !token) {
-          return;
-        }
-
-        await fetch("/app/session-check", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ source: "embedded-session-token-check" }),
-        });
-      } catch (error) {
-        console.warn("Session token check failed", error);
-      }
-    };
-
-    pingSessionTokenEndpoint();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <AppProvider embedded apiKey={apiKey}>

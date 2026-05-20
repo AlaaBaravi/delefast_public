@@ -1,29 +1,22 @@
-/**
- * Webhook Handler: orders/updated
- * Triggered when an order is updated in Shopify
- */
-
 import { authenticate } from "../shopify.server";
 import { handleOrderUpdated } from "../services/orderHandler.server";
-import { logger } from "../services/logger.server";
 
 export const action = async ({ request }) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
-
-  logger.debug(`Received ${topic} webhook`, {
-    orderId: payload.id,
-    orderNumber: payload.name,
-  }, shop);
-
   try {
-    await handleOrderUpdated(shop, payload);
-  } catch (error) {
-    logger.error(`Error processing ${topic} webhook`, {
-      error: error.message,
-      orderId: payload.id,
-    }, shop);
-  }
 
-  // Always return 200 to acknowledge receipt
-  return new Response();
+    const { topic, shop, payload } = await authenticate.webhook(request);
+
+    console.log(`Order updated webhook received from ${shop}`);
+
+    await handleOrderUpdated(shop, payload);
+
+    return new Response("OK", { status: 200 });
+
+  } catch (error) {
+
+    console.error("WEBHOOK orders/updated failed:", error);
+
+    // IMPORTANT: always respond 200 to Shopify
+    return new Response("Webhook received but error occurred", { status: 200 });
+  }
 };

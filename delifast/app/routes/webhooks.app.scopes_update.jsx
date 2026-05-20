@@ -2,21 +2,31 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
 export const action = async ({ request }) => {
-  const { payload, session, topic, shop } = await authenticate.webhook(request);
+  try {
 
-  console.log(`Received ${topic} webhook for ${shop}`);
-  const current = payload.current;
+    const { payload, session, topic, shop } = await authenticate.webhook(request);
 
-  if (session) {
-    await db.session.update({
-      where: {
-        id: session.id,
-      },
-      data: {
-        scope: current.toString(),
-      },
-    });
+    console.log(`Received ${topic} webhook for ${shop}`);
+
+    const current = payload.current;
+
+    if (session && current) {
+      await db.session.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          scope: current.toString(),
+        },
+      });
+    }
+
+  } catch (error) {
+
+    console.error("APP_SCOPES_UPDATE webhook error:", error);
+
   }
 
-  return new Response();
+  // Always return 200 so Shopify does not retry
+  return new Response("OK", { status: 200 });
 };
