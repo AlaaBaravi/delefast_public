@@ -44,7 +44,6 @@ export const action = async ({ request }) => {
   const { authenticate } = await import("../shopify.server");
   const prisma = (await import("../db.server")).default;
 
-  // these are server-only modules
   const { encrypt } = await import("../services/encryption.server");
   const { testConnection } = await import("../services/delifastClient.server");
 
@@ -63,14 +62,12 @@ export const action = async ({ request }) => {
     }
   }
 
-  // Update settings
   const tab = formData.get("tab");
   const updates = {};
 
   if (tab === "general" || !tab) {
     updates.delifastUsername = formData.get("delifastUsername") || null;
 
-    // Only update password if changed (not the placeholder)
     const newPassword = formData.get("delifastPassword");
     if (newPassword && newPassword !== "********") {
       updates.delifastPassword = encrypt(newPassword);
@@ -119,6 +116,26 @@ export const action = async ({ request }) => {
   });
 
   return { success: true, message: "Settings saved successfully!" };
+};
+
+const selectStyle = {
+  width: "100%",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  border: "1px solid #c9cccf",
+  fontSize: "14px",
+  backgroundColor: "#fff",
+  color: "#202223",
+  cursor: "pointer",
+  outline: "none",
+};
+
+const labelStyle = {
+  display: "block",
+  marginBottom: "6px",
+  fontWeight: "500",
+  fontSize: "14px",
+  color: "#202223",
 };
 
 export default function Settings() {
@@ -204,27 +221,38 @@ export default function Settings() {
 
             <s-divider />
 
-            <s-select
-              label="Mode"
-              value={formData.mode || "manual"}
-              onChange={(e) => handleInputChange("mode", e.target.value)}
-            >
-              <option value="manual">Manual - Send orders manually</option>
-              <option value="auto">Auto - Send orders automatically</option>
-            </s-select>
-
-            {formData.mode === "auto" && (
-              <s-select
-                label="Auto-send Trigger"
-                value={formData.autoSendStatus || "paid"}
-                onChange={(e) =>
-                  handleInputChange("autoSendStatus", e.target.value)
-                }
+            {/* Mode Select */}
+            <div>
+              <label style={labelStyle}>Mode</label>
+              <select
+                style={selectStyle}
+                value={formData.mode || "manual"}
+                onChange={(e) => handleInputChange("mode", e.target.value)}
               >
-                <option value="created">When order is created</option>
-                <option value="paid">When order is paid</option>
-                <option value="fulfilled">When order is fulfilled</option>
-              </s-select>
+                <option value="manual">Manual — Send orders manually</option>
+                <option value="auto">Auto — Send orders automatically</option>
+              </select>
+            </div>
+
+            {/* Auto-send Trigger — only shown when mode is auto */}
+            {formData.mode === "auto" && (
+              <div>
+                <label style={labelStyle}>Auto-send Trigger</label>
+                <select
+                  style={selectStyle}
+                  value={formData.autoSendStatus || "paid"}
+                  onChange={(e) =>
+                    handleInputChange("autoSendStatus", e.target.value)
+                  }
+                >
+                  <option value="created">When order is created</option>
+                  <option value="paid">When order is paid</option>
+                  <option value="fulfilled">When order is fulfilled</option>
+                </select>
+                <p style={{ fontSize: "12px", color: "#6d7175", marginTop: "4px" }}>
+                  When should orders be sent to Delifast?
+                </p>
+              </div>
             )}
 
             <s-stack direction="inline" gap="base">
@@ -279,20 +307,26 @@ export default function Settings() {
               value={formData.senderMobile || ""}
               onChange={(e) => handleInputChange("senderMobile", e.target.value)}
             />
-            <s-select
-              label="City"
-              value={formData.senderCityId || ""}
-              onChange={(e) =>
-                handleInputChange("senderCityId", e.target.value)
-              }
-            >
-              <option value="">Select a city</option>
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </s-select>
+
+            {/* City Select */}
+            <div>
+              <label style={labelStyle}>City</label>
+              <select
+                style={selectStyle}
+                value={formData.senderCityId || ""}
+                onChange={(e) =>
+                  handleInputChange("senderCityId", e.target.value)
+                }
+              >
+                <option value="">Select a city</option>
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <s-text-field
               label="Area ID"
               value={formData.senderAreaId || ""}
@@ -328,30 +362,43 @@ export default function Settings() {
               }
               helpText="Format: LxWxH in cm (e.g., 10x10x10)"
             />
-            <s-select
-              label="Default Destination City"
-              value={formData.defaultCityId || 5}
-              onChange={(e) =>
-                handleInputChange("defaultCityId", e.target.value)
-              }
-              helpText="Used when customer city cannot be determined"
-            >
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </s-select>
-            <s-select
-              label="Payment Method"
-              value={formData.paymentMethodId || 0}
-              onChange={(e) =>
-                handleInputChange("paymentMethodId", e.target.value)
-              }
-            >
-              <option value="0">COD - Cash on Delivery</option>
-              <option value="1">Prepaid</option>
-            </s-select>
+
+            {/* Default City Select */}
+            <div>
+              <label style={labelStyle}>Default Destination City</label>
+              <select
+                style={selectStyle}
+                value={formData.defaultCityId || 5}
+                onChange={(e) =>
+                  handleInputChange("defaultCityId", e.target.value)
+                }
+              >
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name}
+                  </option>
+                ))}
+              </select>
+              <p style={{ fontSize: "12px", color: "#6d7175", marginTop: "4px" }}>
+                Used when customer city cannot be determined
+              </p>
+            </div>
+
+            {/* Payment Method Select */}
+            <div>
+              <label style={labelStyle}>Payment Method</label>
+              <select
+                style={selectStyle}
+                value={formData.paymentMethodId ?? 0}
+                onChange={(e) =>
+                  handleInputChange("paymentMethodId", e.target.value)
+                }
+              >
+                <option value="0">COD - Cash on Delivery</option>
+                <option value="1">Prepaid</option>
+              </select>
+            </div>
+
             <s-checkbox
               checked={!!formData.feesOnSender}
               onChange={(e) =>
