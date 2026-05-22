@@ -18,7 +18,7 @@ const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET_KEY,
 
-  apiVersion: ApiVersion.October25,
+apiVersion: ApiVersion.April26,
 
   scopes: process.env.SCOPES?.split(","),
 
@@ -111,7 +111,7 @@ distribution: AppDistribution.Public,
 
 export default shopify;
 
-export const apiVersion = ApiVersion.October25;
+export const apiVersion = ApiVersion.April26;
 
 export const addDocumentResponseHeaders =
   shopify.addDocumentResponseHeaders;
